@@ -79,7 +79,6 @@ fn get_tooltip() -> String {
         }
     }
 
-    let memory_utilization_percent = get_memory_used_percent();
     format!(
         "GPU: {}\n\
         MEM USED: {}/{} ({}%)\n\
@@ -93,7 +92,7 @@ fn get_tooltip() -> String {
         gpu_status.gpu_util,
         gpu_status.mem_used,
         gpu_status.mem_total,
-        memory_utilization_percent,
+        get_memory_used_percent(),
         gpu_status.mem_util,
         gpu_status.enc_util,
         gpu_status.dec_util,
