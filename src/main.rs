@@ -10,16 +10,42 @@ fn main() {
     println!("{}", serde_json::to_string(&output).unwrap());
 }
 
-fn get_text() -> String {
+fn get_memory_used_percent() -> u32 {
     let out = &std::process::Command::new("nvidia-smi")
         .arg("--format=csv,noheader")
-        .arg("--query-gpu=utilization.gpu,utilization.memory")
+        .arg("--query-gpu=memory.used,memory.total")
         .output()
         .unwrap()
         .stdout;
     let out = String::from_utf8_lossy(out);
 
-    out.replace(' ', "").replace(',', "|").replace('\n', "")
+    let arr: Vec<f32> = out
+        .replace(',', "")
+        .replace("MiB", "")
+        .split_whitespace()
+        .map(|x| x.replace("MiB", "").parse::<f32>().unwrap())
+        .collect();
+
+    let mem_used_percent = (arr[0] / arr[1]) * 100.0;
+
+    mem_used_percent.round() as u32
+}
+
+fn get_text() -> String {
+    let out = &std::process::Command::new("nvidia-smi")
+        .arg("--format=csv,noheader,nounits")
+        .arg("--query-gpu=utilization.gpu")
+        .output()
+        .unwrap()
+        .stdout;
+    let out = String::from_utf8_lossy(out).trim().parse::<u32>().unwrap();
+
+    let output = TextOutput {
+        gpu_util: out.to_string(),
+        mem_usage: get_memory_used_percent().to_string(),
+    };
+
+    format!("{}%|{}%", output.gpu_util, output.mem_usage)
 }
 
 fn get_tooltip() -> String {
@@ -53,9 +79,11 @@ fn get_tooltip() -> String {
         }
     }
 
+    let memory_utilization_percent = get_memory_used_percent();
     format!(
         "GPU: {}\n\
-        MEM USED: {}/{} ({})\n\
+        MEM USED: {}/{} ({}%)\n\
+        MEM R/W: {}\n\
         ENC: {}\n\
         DEC: {}\n\
         TEMP: {}\n\
@@ -65,6 +93,7 @@ fn get_tooltip() -> String {
         gpu_status.gpu_util,
         gpu_status.mem_used,
         gpu_status.mem_total,
+        memory_utilization_percent,
         gpu_status.mem_util,
         gpu_status.enc_util,
         gpu_status.dec_util,
@@ -93,4 +122,10 @@ struct TooltipOutput {
 struct OutputFormat {
     text: String,
     tooltip: String,
+}
+
+#[derive(Default)]
+struct TextOutput {
+    gpu_util: String,
+    mem_usage: String,
 }
