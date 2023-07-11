@@ -1,3 +1,4 @@
+use nvidia_smi_waybar::tx_rx_reader::read_tx_rx;
 use serde::Serialize;
 use std::ops::Add;
 
@@ -21,6 +22,8 @@ fn get_text(gpu_status: &NvidiaSmiOutput) -> String {
 }
 
 fn get_tooltip(gpu_status: &NvidiaSmiOutput) -> String {
+    let tx_rx = read_tx_rx().unwrap();
+
     format!(
         "GPU: {}\n\
         MEM USED: {}/{} ({}%)\n\
@@ -30,7 +33,9 @@ fn get_tooltip(gpu_status: &NvidiaSmiOutput) -> String {
         TEMP: {}\n\
         POWER: {}\n\
         PSTATE: {}\n\
-        FAN SPEED: {}",
+        FAN SPEED: {}\n\
+        TX: {} MiB/s\n\
+        RX: {} MiB/s",
         gpu_status.gpu_util,
         gpu_status.mem_used,
         gpu_status.mem_total,
@@ -41,7 +46,9 @@ fn get_tooltip(gpu_status: &NvidiaSmiOutput) -> String {
         gpu_status.temp,
         gpu_status.power,
         gpu_status.pstate,
-        gpu_status.fan_speed
+        gpu_status.fan_speed,
+        tx_rx.tx,
+        tx_rx.rx
     )
 }
 
