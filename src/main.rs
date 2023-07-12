@@ -3,7 +3,7 @@ use serde::Serialize;
 use std::ops::Add;
 
 fn main() {
-    let gpu_status = NvidiaSmiOutput::new();
+    let gpu_status = GpuStatus::new();
 
     let output = OutputFormat {
         text: get_text(&gpu_status),
@@ -13,7 +13,7 @@ fn main() {
     println!("{}", serde_json::to_string(&output).unwrap());
 }
 
-fn get_text(gpu_status: &NvidiaSmiOutput) -> String {
+fn get_text(gpu_status: &GpuStatus) -> String {
     format!(
         "{}|{}%",
         gpu_status.gpu_util.clone(),
@@ -21,9 +21,7 @@ fn get_text(gpu_status: &NvidiaSmiOutput) -> String {
     )
 }
 
-fn get_tooltip(gpu_status: &NvidiaSmiOutput) -> String {
-    let tx_rx = read_tx_rx().unwrap();
-
+fn get_tooltip(gpu_status: &GpuStatus) -> String {
     format!(
         "GPU: {}\n\
         MEM USED: {}/{} ({}%)\n\
@@ -47,13 +45,13 @@ fn get_tooltip(gpu_status: &NvidiaSmiOutput) -> String {
         gpu_status.power,
         gpu_status.pstate,
         gpu_status.fan_speed,
-        tx_rx.tx,
-        tx_rx.rx
+        gpu_status.tx,
+        gpu_status.rx
     )
 }
 
 #[derive(Default)]
-struct NvidiaSmiOutput {
+struct GpuStatus {
     gpu_util: String,
     mem_util: String,
     enc_util: String,
@@ -64,9 +62,11 @@ struct NvidiaSmiOutput {
     mem_used: String,
     mem_total: String,
     fan_speed: String,
+    tx: f64,
+    rx: f64,
 }
 
-impl NvidiaSmiOutput {
+impl GpuStatus {
     fn new() -> Self {
         let out = &std::process::Command::new("nvidia-smi")
             .arg("--format=csv,noheader")
@@ -74,12 +74,15 @@ impl NvidiaSmiOutput {
             .output()
             .unwrap()
             .stdout;
+
         let out = String::from_utf8_lossy(out);
         let out = out.replace(' ', "").replace(',', " ");
 
+        let tx_rx = read_tx_rx().unwrap();
+
         let split = out.split_whitespace();
 
-        let mut gpu_status = NvidiaSmiOutput::default();
+        let mut gpu_status = GpuStatus::default();
 
         for (i, val) in split.enumerate() {
             match i {
@@ -96,6 +99,9 @@ impl NvidiaSmiOutput {
                 _ => (),
             }
         }
+
+        gpu_status.tx = tx_rx.tx;
+        gpu_status.rx = tx_rx.rx;
 
         gpu_status
     }
