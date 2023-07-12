@@ -1,1 +1,1 @@
-pub mod tx_rx_reader;
+pub mod gpu_status;

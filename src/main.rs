@@ -1,116 +1,45 @@
-use nvidia_smi_waybar::tx_rx_reader::read_tx_rx;
+use std::sync::Mutex;
+
+use color_eyre::eyre::{anyhow, Result};
+use nvml_wrapper::error::NvmlError;
+use nvml_wrapper::Nvml;
+use once_cell::sync::OnceCell;
 use serde::Serialize;
-use std::ops::Add;
 
-fn main() {
-    let gpu_status = GpuStatus::new();
+use nvidia_smi_waybar::gpu_status::GpuStatus;
 
-    let output = OutputFormat {
-        text: get_text(&gpu_status),
-        tooltip: get_tooltip(&gpu_status),
-    };
+static NVML_INSTANCE: OnceCell<Mutex<core::result::Result<Nvml, NvmlError>>> = OnceCell::new();
+
+fn main() -> Result<()> {
+    let nvml = NVML_INSTANCE
+        .get_or_init(|| {
+            let nvml = Nvml::init();
+            Mutex::new(nvml)
+        })
+        .lock()
+        .unwrap();
+
+    let nvml = nvml
+        .as_ref()
+        .map_err(|e| anyhow!("Failed to initialize NVML {}", e))?;
+
+    let device = nvml.device_by_index(0)?;
+
+    let gpu_status = GpuStatus::new(device);
+
+    let output: OutputFormat = gpu_status?.into();
 
     println!("{}", serde_json::to_string(&output).unwrap());
+
+    Ok(())
 }
 
-fn get_text(gpu_status: &GpuStatus) -> String {
-    format!(
-        "{}|{}%",
-        gpu_status.gpu_util.clone(),
-        gpu_status.compute_mem_usage()
-    )
-}
-
-fn get_tooltip(gpu_status: &GpuStatus) -> String {
-    format!(
-        "GPU: {}\n\
-        MEM USED: {}/{} ({}%)\n\
-        MEM R/W: {}\n\
-        ENC: {}\n\
-        DEC: {}\n\
-        TEMP: {}\n\
-        POWER: {}\n\
-        PSTATE: {}\n\
-        FAN SPEED: {}\n\
-        TX: {} MiB/s\n\
-        RX: {} MiB/s",
-        gpu_status.gpu_util,
-        gpu_status.mem_used,
-        gpu_status.mem_total,
-        gpu_status.compute_mem_usage(),
-        gpu_status.mem_util,
-        gpu_status.enc_util,
-        gpu_status.dec_util,
-        gpu_status.temp,
-        gpu_status.power,
-        gpu_status.pstate,
-        gpu_status.fan_speed,
-        gpu_status.tx,
-        gpu_status.rx
-    )
-}
-
-#[derive(Default)]
-struct GpuStatus {
-    gpu_util: String,
-    mem_util: String,
-    enc_util: String,
-    dec_util: String,
-    temp: String,
-    power: String,
-    pstate: String,
-    mem_used: String,
-    mem_total: String,
-    fan_speed: String,
-    tx: f64,
-    rx: f64,
-}
-
-impl GpuStatus {
-    fn new() -> Self {
-        let out = &std::process::Command::new("nvidia-smi")
-            .arg("--format=csv,noheader")
-            .arg("--query-gpu=utilization.gpu,utilization.memory,utilization.encoder,utilization.decoder,temperature.gpu,power.draw,pstate,memory.used,memory.total,fan.speed")
-            .output()
-            .unwrap()
-            .stdout;
-
-        let out = String::from_utf8_lossy(out);
-        let out = out.replace(' ', "").replace(',', " ");
-
-        let tx_rx = read_tx_rx().unwrap();
-
-        let split = out.split_whitespace();
-
-        let mut gpu_status = GpuStatus::default();
-
-        for (i, val) in split.enumerate() {
-            match i {
-                0 => gpu_status.gpu_util = val.to_owned(),
-                1 => gpu_status.mem_util = val.to_owned(),
-                2 => gpu_status.enc_util = val.to_owned(),
-                3 => gpu_status.dec_util = val.to_owned(),
-                4 => gpu_status.temp = val.to_owned().add("°C"),
-                5 => gpu_status.power = val.to_owned(),
-                6 => gpu_status.pstate = val.to_owned(),
-                7 => gpu_status.mem_used = val.to_owned().replace("MiB", ""),
-                8 => gpu_status.mem_total = val.to_owned(),
-                9 => gpu_status.fan_speed = val.to_owned(),
-                _ => (),
-            }
+impl From<GpuStatus> for OutputFormat {
+    fn from(gpu_status: GpuStatus) -> Self {
+        OutputFormat {
+            text: gpu_status.get_text(),
+            tooltip: gpu_status.get_tooltip(),
         }
-
-        gpu_status.tx = tx_rx.tx;
-        gpu_status.rx = tx_rx.rx;
-
-        gpu_status
-    }
-
-    fn compute_mem_usage(&self) -> u8 {
-        let mem_used_percent = (self.mem_used.parse::<f32>().unwrap()
-            / self.mem_total.replace("MiB", "").parse::<f32>().unwrap())
-            * 100f32;
-        mem_used_percent.round() as u8
     }
 }
 
