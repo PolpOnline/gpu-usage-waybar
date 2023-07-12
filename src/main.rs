@@ -25,11 +25,11 @@ fn main() -> Result<()> {
 
     let device = nvml.device_by_index(0)?;
 
-    let gpu_status = GpuStatus::new(device);
+    let gpu_status = GpuStatus::new(device)?;
 
-    let output: OutputFormat = gpu_status?.into();
+    let output: OutputFormat = gpu_status.into();
 
-    println!("{}", serde_json::to_string(&output).unwrap());
+    println!("{}", serde_json::to_string(&output)?);
 
     Ok(())
 }
