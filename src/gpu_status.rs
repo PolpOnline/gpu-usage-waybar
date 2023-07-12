@@ -38,7 +38,7 @@ impl GpuStatus {
         gpu_status.power = device.power_usage()? as f64 / 1000f64; // convert to W from mW
         gpu_status.pstate = device.performance_state()?.into();
         gpu_status.fan_speed = device.fan_speed(0u32)?;
-        gpu_status.tx = device.pcie_throughput(PcieUtilCounter::Send)? as f64 / 1000f64;
+        gpu_status.tx = device.pcie_throughput(PcieUtilCounter::Send)? as f64 / 1000f64; // convert to MiB/s from KiB/s
         gpu_status.rx = device.pcie_throughput(PcieUtilCounter::Receive)? as f64 / 1000f64;
 
         Ok(gpu_status)
@@ -85,7 +85,6 @@ impl GpuStatus {
 
 #[derive(Default)]
 pub(crate) enum PState {
-    #[default]
     P0,
     P1,
     P2,
@@ -102,6 +101,8 @@ pub(crate) enum PState {
     P13,
     P14,
     P15,
+    #[default]
+    Unknown,
 }
 
 impl Display for PState {
@@ -123,6 +124,7 @@ impl Display for PState {
             PState::P13 => "P13",
             PState::P14 => "P14",
             PState::P15 => "P15",
+            PState::Unknown => "Unknown",
         };
 
         write!(f, "{}", pstate)
@@ -148,7 +150,7 @@ impl From<PerformanceState> for PState {
             PerformanceState::Thirteen => PState::P13,
             PerformanceState::Fourteen => PState::P14,
             PerformanceState::Fifteen => PState::P15,
-            _ => PState::default(),
+            PerformanceState::Unknown => PState::Unknown,
         }
     }
 }
