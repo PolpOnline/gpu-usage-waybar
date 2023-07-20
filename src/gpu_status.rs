@@ -1,8 +1,7 @@
-use std::fmt::Display;
-
 use color_eyre::eyre::Result;
 use nvml_wrapper::enum_wrappers::device::{PcieUtilCounter, PerformanceState, TemperatureSensor};
 use nvml_wrapper::Device;
+use strum::Display;
 
 #[derive(Default)]
 pub struct GpuStatus {
@@ -83,7 +82,7 @@ impl GpuStatus {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Display)]
 pub(crate) enum PState {
     P0,
     P1,
@@ -103,32 +102,6 @@ pub(crate) enum PState {
     P15,
     #[default]
     Unknown,
-}
-
-impl Display for PState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let pstate = match self {
-            PState::P0 => "P0",
-            PState::P1 => "P1",
-            PState::P2 => "P2",
-            PState::P3 => "P3",
-            PState::P4 => "P4",
-            PState::P5 => "P5",
-            PState::P6 => "P6",
-            PState::P7 => "P7",
-            PState::P8 => "P8",
-            PState::P9 => "P9",
-            PState::P10 => "P10",
-            PState::P11 => "P11",
-            PState::P12 => "P12",
-            PState::P13 => "P13",
-            PState::P14 => "P14",
-            PState::P15 => "P15",
-            PState::Unknown => "Unknown",
-        };
-
-        write!(f, "{}", pstate)
-    }
 }
 
 impl From<PerformanceState> for PState {
