@@ -21,24 +21,23 @@ pub struct GpuStatus {
 
 impl GpuStatus {
     pub fn new(device: Device) -> Result<Self> {
-        let mut gpu_status = GpuStatus::default();
-
         let utilization_rates = device.utilization_rates()?;
         let memory_info_in_bytes = device.memory_info()?;
 
-        gpu_status.gpu_util = utilization_rates.gpu;
-        gpu_status.mem_used = memory_info_in_bytes.used as f64 / 1024f64 / 1024f64;
-        gpu_status.mem_total = memory_info_in_bytes.total as f64 / 1024f64 / 1024f64;
-
-        gpu_status.mem_util = utilization_rates.memory;
-        gpu_status.dec_util = device.decoder_utilization()?.utilization;
-        gpu_status.enc_util = device.encoder_utilization()?.utilization;
-        gpu_status.temp = device.temperature(TemperatureSensor::Gpu)?;
-        gpu_status.power = device.power_usage()? as f64 / 1000f64; // convert to W from mW
-        gpu_status.pstate = device.performance_state()?.into();
-        gpu_status.fan_speed = device.fan_speed(0u32)?;
-        gpu_status.tx = device.pcie_throughput(PcieUtilCounter::Send)? as f64 / 1000f64; // convert to MiB/s from KiB/s
-        gpu_status.rx = device.pcie_throughput(PcieUtilCounter::Receive)? as f64 / 1000f64;
+        let gpu_status = GpuStatus {
+            gpu_util: utilization_rates.gpu,
+            mem_used: (memory_info_in_bytes.used as f64 / 1024f64 / 1024f64),
+            mem_total: (memory_info_in_bytes.total as f64 / 1024f64 / 1024f64),
+            mem_util: utilization_rates.memory,
+            dec_util: device.decoder_utilization()?.utilization,
+            enc_util: device.encoder_utilization()?.utilization,
+            temp: device.temperature(TemperatureSensor::Gpu)?,
+            power: (device.power_usage()? as f64 / 1000f64), // convert to W from mW
+            pstate: device.performance_state()?.into(),
+            fan_speed: device.fan_speed(0u32)?,
+            tx: (device.pcie_throughput(PcieUtilCounter::Send)? as f64 / 1000f64), // convert to MiB/s from KiB/s
+            rx: (device.pcie_throughput(PcieUtilCounter::Receive)? as f64 / 1000f64),
+        };
 
         Ok(gpu_status)
     }
