@@ -20,7 +20,7 @@ pub struct GpuStatus {
 }
 
 impl GpuStatus {
-    pub fn new(device: Device) -> Result<Self> {
+    pub fn new(device: &Device) -> Result<Self> {
         let utilization_rates = device.utilization_rates()?;
         let memory_info_in_bytes = device.memory_info()?;
 

@@ -25,13 +25,15 @@ fn main() -> Result<()> {
 
     let device = nvml.device_by_index(0)?;
 
-    let gpu_status = GpuStatus::new(device)?;
+    loop {
+        let gpu_status = GpuStatus::new(&device)?;
 
-    let output: OutputFormat = gpu_status.into();
+        let output: OutputFormat = gpu_status.into();
 
-    println!("{}", serde_json::to_string(&output)?);
+        println!("{}", serde_json::to_string(&output)?);
 
-    Ok(())
+        std::thread::sleep(std::time::Duration::from_secs(1));
+    }
 }
 
 impl From<GpuStatus> for OutputFormat {
