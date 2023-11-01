@@ -1,10 +1,19 @@
 use color_eyre::eyre::Result;
 use nvml_wrapper::enum_wrappers::device::{PcieUtilCounter, PerformanceState, TemperatureSensor};
-use nvml_wrapper::Device;
+use nvml_wrapper::{Device, Nvml};
+use once_cell::sync::OnceCell;
+use std::cell::RefCell;
+use std::ops::Deref;
+use std::rc::Rc;
+use std::sync::Mutex;
 use strum::Display;
 
+trait Instance: Sync + Send {}
+impl Instance for Nvml {}
+pub static INSTANCE: OnceCell<Box<Mutex<dyn Instance>>> = OnceCell::new();
+
 #[derive(Default)]
-pub struct GpuStatus {
+pub struct GpuStatusData {
     pub(crate) gpu_util: u32,
     pub(crate) mem_used: f64,
     pub(crate) mem_total: f64,
@@ -19,29 +28,7 @@ pub struct GpuStatus {
     pub(crate) rx: f64,
 }
 
-impl GpuStatus {
-    pub fn new(device: &Device) -> Result<Self> {
-        let utilization_rates = device.utilization_rates()?;
-        let memory_info_in_bytes = device.memory_info()?;
-
-        let gpu_status = GpuStatus {
-            gpu_util: utilization_rates.gpu,
-            mem_used: (memory_info_in_bytes.used as f64 / 1024f64 / 1024f64),
-            mem_total: (memory_info_in_bytes.total as f64 / 1024f64 / 1024f64),
-            mem_util: utilization_rates.memory,
-            dec_util: device.decoder_utilization()?.utilization,
-            enc_util: device.encoder_utilization()?.utilization,
-            temp: device.temperature(TemperatureSensor::Gpu)?,
-            power: (device.power_usage()? as f64 / 1000f64), // convert to W from mW
-            pstate: device.performance_state()?.into(),
-            fan_speed: device.fan_speed(0u32)?,
-            tx: (device.pcie_throughput(PcieUtilCounter::Send)? as f64 / 1000f64), // convert to MiB/s from KiB/s
-            rx: (device.pcie_throughput(PcieUtilCounter::Receive)? as f64 / 1000f64),
-        };
-
-        Ok(gpu_status)
-    }
-
+impl GpuStatusData {
     pub(crate) fn compute_mem_usage(&self) -> u8 {
         let mem_used_percent = (self.mem_used / self.mem_total) * 100f64;
         mem_used_percent.round() as u8
@@ -78,6 +65,51 @@ impl GpuStatus {
             self.tx,
             self.rx
         )
+    }
+}
+
+trait GpuStatus {
+    fn compute(self) -> Result<GpuStatusData>;
+}
+
+struct NvidiaGpuStatus<'a> {
+    nvml: Rc<Nvml>,
+    device: Device<'a>,
+}
+
+impl NvidiaGpuStatus<'_> {
+    pub fn new() -> Result<Self> {
+        let nvml = Rc::new(Nvml::init()?);
+
+        let device = nvml.clone().device_by_index(0)?;
+
+        Ok(Self { nvml, device })
+    }
+}
+
+impl GpuStatus for NvidiaGpuStatus<'_> {
+    fn compute(self) -> Result<GpuStatusData> {
+        let device = self.device;
+
+        let utilization_rates = device.utilization_rates()?;
+        let memory_info_in_bytes = device.memory_info()?;
+
+        let gpu_status = GpuStatusData {
+            gpu_util: utilization_rates.gpu,
+            mem_used: (memory_info_in_bytes.used as f64 / 1024f64 / 1024f64),
+            mem_total: (memory_info_in_bytes.total as f64 / 1024f64 / 1024f64),
+            mem_util: utilization_rates.memory,
+            dec_util: device.decoder_utilization()?.utilization,
+            enc_util: device.encoder_utilization()?.utilization,
+            temp: device.temperature(TemperatureSensor::Gpu)?,
+            power: (device.power_usage()? as f64 / 1000f64), // convert to W from mW
+            pstate: device.performance_state()?.into(),
+            fan_speed: device.fan_speed(0u32)?,
+            tx: (device.pcie_throughput(PcieUtilCounter::Send)? as f64 / 1000f64), // convert to MiB/s from KiB/s
+            rx: (device.pcie_throughput(PcieUtilCounter::Receive)? as f64 / 1000f64),
+        };
+
+        Ok(gpu_status)
     }
 }
 
