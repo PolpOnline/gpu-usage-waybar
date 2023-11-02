@@ -10,7 +10,7 @@ const UPDATE_INTERVAL: Duration = Duration::from_secs(1);
 
 pub enum Instance {
     Nvml(Box<Nvml>),
-    Amd(i32),
+    Amd,
 }
 
 impl Instance {
@@ -22,7 +22,7 @@ impl Instance {
             return Ok(Instance::Nvml(Box::new(Nvml::init()?)));
         }
         if modules_file.contains("amdgpu") {
-            return Ok(Instance::Amd(0));
+            return Ok(Instance::Amd);
         }
 
         Err(eyre!("No supported GPU found"))
@@ -38,7 +38,7 @@ fn main() -> Result<()> {
 
     let gpu_status_handler: Box<dyn GpuStatus> = match &*INSTANCE {
         Instance::Nvml(nvml) => Box::new(nvidia_smi_waybar::nvidia::NvidiaGpuStatus::new(nvml)?),
-        Instance::Amd(_) => unimplemented!(),
+        Instance::Amd => unimplemented!(),
     };
 
     loop {
