@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{eyre, Result};
 use lazy_static::lazy_static;
 use nvidia_smi_waybar::gpu_status::{GpuStatus, GpuStatusData};
 use nvml_wrapper::Nvml;
@@ -19,8 +19,16 @@ lazy_static! {
 
 /// Get the instance based on the GPU brand.
 fn get_system_instance() -> Result<Instance> {
-    // TODO: Detect GPU brand using kernel FFI; for now only Nvidia is supported.
-    Ok(Instance::Nvml(Box::new(Nvml::init()?)))
+    let modules_file = std::fs::read_to_string("/proc/modules")?;
+
+    if modules_file.contains("nvidia") {
+        return Ok(Instance::Nvml(Box::new(Nvml::init()?)));
+    }
+    if modules_file.contains("amdgpu") {
+        return Ok(Instance::Amd(0));
+    }
+
+    Err(eyre!("No supported GPU found"))
 }
 
 fn main() -> Result<()> {
