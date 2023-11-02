@@ -1,13 +1,5 @@
 use color_eyre::eyre::Result;
-use nvml_wrapper::Nvml;
-use once_cell::sync::OnceCell;
-
-use std::sync::Mutex;
 use strum::Display;
-
-trait Instance: Sync + Send {}
-impl Instance for Nvml {}
-pub static INSTANCE: OnceCell<Box<Mutex<dyn Instance>>> = OnceCell::new();
 
 #[derive(Default)]
 pub struct GpuStatusData {
@@ -66,7 +58,7 @@ impl GpuStatusData {
 }
 
 pub trait GpuStatus {
-    fn compute(self) -> Result<GpuStatusData>;
+    fn compute(&self) -> Result<GpuStatusData>;
 }
 
 #[derive(Default, Display)]

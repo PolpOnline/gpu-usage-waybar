@@ -2,26 +2,22 @@ use crate::gpu_status::{GpuStatus, GpuStatusData, PState};
 use color_eyre::eyre::Result;
 use nvml_wrapper::enum_wrappers::device::{PcieUtilCounter, PerformanceState, TemperatureSensor};
 use nvml_wrapper::{Device, Nvml};
-use std::rc::Rc;
 
 pub struct NvidiaGpuStatus<'a> {
-    nvml: Rc<Nvml>,
     device: Device<'a>,
 }
 
 impl NvidiaGpuStatus<'_> {
-    pub fn new() -> Result<Self> {
-        let nvml = Rc::new(Nvml::init()?);
+    pub fn new(instance: &'static Nvml) -> Result<Self> {
+        let device = instance.device_by_index(0)?;
 
-        let device = nvml.clone().device_by_index(0)?;
-
-        Ok(Self { nvml, device })
+        Ok(Self { device })
     }
 }
 
 impl GpuStatus for NvidiaGpuStatus<'_> {
-    fn compute(self) -> Result<GpuStatusData> {
-        let device = self.device;
+    fn compute(&self) -> Result<GpuStatusData> {
+        let device = &self.device;
 
         let utilization_rates = device.utilization_rates()?;
         let memory_info_in_bytes = device.memory_info()?;
