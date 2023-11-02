@@ -13,22 +13,24 @@ pub enum Instance {
     Amd(i32),
 }
 
-lazy_static! {
-    pub static ref INSTANCE: Instance = get_system_instance().unwrap();
+impl Instance {
+    /// Get the instance based on the GPU brand.
+    pub fn new() -> Result<Self> {
+        let modules_file = std::fs::read_to_string("/proc/modules")?;
+
+        if modules_file.contains("nvidia") {
+            return Ok(Instance::Nvml(Box::new(Nvml::init()?)));
+        }
+        if modules_file.contains("amdgpu") {
+            return Ok(Instance::Amd(0));
+        }
+
+        Err(eyre!("No supported GPU found"))
+    }
 }
 
-/// Get the instance based on the GPU brand.
-fn get_system_instance() -> Result<Instance> {
-    let modules_file = std::fs::read_to_string("/proc/modules")?;
-
-    if modules_file.contains("nvidia") {
-        return Ok(Instance::Nvml(Box::new(Nvml::init()?)));
-    }
-    if modules_file.contains("amdgpu") {
-        return Ok(Instance::Amd(0));
-    }
-
-    Err(eyre!("No supported GPU found"))
+lazy_static! {
+    pub static ref INSTANCE: Instance = Instance::new().unwrap();
 }
 
 fn main() -> Result<()> {
