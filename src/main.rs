@@ -15,7 +15,7 @@ fn main() -> Result<()> {
     let args = Args::parse();
 
     let gpu_status_handler: dyn GpuStatus = match args.gpu_type {
-        GpuType::Amd => todo!(),
+        GpuType::Amd => unimplemented!(),
         GpuType::Nvidia => NvidiaGpuStatus::new()?,
     };
 
@@ -31,7 +31,7 @@ fn main() -> Result<()> {
 }
 
 impl From<GpuStatusData> for OutputFormat {
-    fn from(gpu_status: GpuStatusData) -> Self {
+    fn from(gpu_status: Self) -> OutputFormat {
         OutputFormat {
             text: gpu_status.get_text(),
             tooltip: gpu_status.get_tooltip(),
