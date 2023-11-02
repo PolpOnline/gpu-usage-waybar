@@ -215,7 +215,6 @@ dependencies = [
  "color-eyre",
  "lazy_static",
  "nvml-wrapper",
- "once_cell",
  "serde",
  "serde_json",
  "strum",
