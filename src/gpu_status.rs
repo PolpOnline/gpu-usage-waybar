@@ -3,17 +3,29 @@ use strum::Display;
 
 #[derive(Default)]
 pub struct GpuStatusData {
-    pub(crate) gpu_util: u32,
+    /// GPU utilization in percent.
+    pub(crate) gpu_util: u8,
+    /// Memory used in MiB.
     pub(crate) mem_used: f64,
+    /// Total memory in MiB.
     pub(crate) mem_total: f64,
-    pub(crate) mem_util: u32,
-    pub(crate) dec_util: u32,
-    pub(crate) enc_util: u32,
-    pub(crate) temp: u32,
+    /// Memory utilization in percent.
+    pub(crate) mem_util: u8,
+    /// Decoder utilization in percent.
+    pub(crate) dec_util: u8,
+    /// Encoder utilization in percent.
+    pub(crate) enc_util: u8,
+    /// Temperature in degrees Celsius.
+    pub(crate) temp: u8,
+    /// Power usage in Watts.
     pub(crate) power: f64,
+    /// Performance state.
     pub(crate) p_state: PState,
-    pub(crate) fan_speed: u32,
+    /// Fan speed in percent.
+    pub(crate) fan_speed: u8,
+    /// PCIe TX throughput in MiB/s.
     pub(crate) tx: f64,
+    /// PCIe RX throughput in MiB/s.
     pub(crate) rx: f64,
 }
 
