@@ -1,36 +1,28 @@
-use clap::{Parser, ValueEnum};
-use std::sync::Mutex;
+use std::env::Args;
 use std::time::Duration;
 
-use color_eyre::eyre::{anyhow, Result};
-use nvml_wrapper::error::NvmlError;
-use nvml_wrapper::Nvml;
-use once_cell::sync::OnceCell;
+use color_eyre::eyre::Result;
+use nvidia_smi_waybar::clap::GpuType;
+use nvidia_smi_waybar::gpu_status::{GpuStatus, GpuStatusData};
+use nvidia_smi_waybar::nvidia::NvidiaGpuStatus;
 use serde::Serialize;
 
 const UPDATE_INTERVAL: Duration = Duration::from_secs(1);
 
-#[derive(Parser)]
-#[command(author, version, about, long_about = None)]
-struct Args {
-    /// Gpu type between AMD and Nvidia
-    #[arg(short, long)]
-    gpu_type: GpuType,
-}
-
-#[derive(Clone, ValueEnum)]
-enum GpuType {
-    Amd,
-    Nvidia,
-}
-
 fn main() -> Result<()> {
+    color_eyre::install()?;
+
     let args = Args::parse();
 
-    loop {
-        let gpu_status = gpu_status.populate_nvidia(&device)?;
+    let gpu_status_handler: dyn GpuStatus = match args.gpu_type {
+        GpuType::Amd => todo!(),
+        GpuType::Nvidia => NvidiaGpuStatus::new()?,
+    };
 
-        let output: OutputFormat = gpu_status.into();
+    loop {
+        let gpu_status_data = gpu_status_handler.compute()?;
+
+        let output: OutputFormat = gpu_status_data.into();
 
         println!("{}", serde_json::to_string(&output)?);
 
@@ -38,23 +30,8 @@ fn main() -> Result<()> {
     }
 }
 
-mod initializer {
-    use super::*;
-    fn init_nvidia(gpu_status: GpuStatus) -> Result<()> {
-        let nvml = Nvml::init()?;
-        let device = nvml.device_by_index(0)?;
-        let gpu_status = GpuStatus::populate_nvidia(gpu_status, &device)?;
-
-        let output: OutputFormat = gpu_status.into();
-
-        println!("{}", serde_json::to_string(&output)?);
-
-        Ok(())
-    }
-}
-
-impl From<GpuStatus> for OutputFormat {
-    fn from(gpu_status: GpuStatus) -> Self {
+impl From<GpuStatusData> for OutputFormat {
+    fn from(gpu_status: GpuStatusData) -> Self {
         OutputFormat {
             text: gpu_status.get_text(),
             tooltip: gpu_status.get_tooltip(),
