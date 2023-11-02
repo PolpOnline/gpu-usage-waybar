@@ -2,8 +2,6 @@ use color_eyre::eyre::Result;
 use nvml_wrapper::enum_wrappers::device::{PcieUtilCounter, PerformanceState, TemperatureSensor};
 use nvml_wrapper::{Device, Nvml};
 use once_cell::sync::OnceCell;
-use std::cell::RefCell;
-use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::Mutex;
 use strum::Display;
