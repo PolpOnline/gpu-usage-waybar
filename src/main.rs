@@ -7,6 +7,7 @@ use nvidia_smi_waybar::gpu_status::{GpuStatus, GpuStatusData};
 use nvml_wrapper::Nvml;
 use serde::Serialize;
 
+/// Polling interval
 const UPDATE_INTERVAL: Duration = Duration::from_secs(1);
 
 pub enum Instance {
@@ -20,10 +21,10 @@ impl Instance {
         let modules_file = std::fs::read_to_string("/proc/modules")?;
 
         if modules_file.contains("nvidia") {
-            return Ok(Instance::Nvml(Box::new(Nvml::init()?)));
+            return Ok(Self::Nvml(Box::new(Nvml::init()?)));
         }
         if modules_file.contains("amdgpu") {
-            return Ok(Instance::Amd(Box::new(AmdSysFS::init()?)));
+            return Ok(Self::Amd(Box::new(AmdSysFS::init()?)));
         }
 
         Err(eyre!("No supported GPU found"))

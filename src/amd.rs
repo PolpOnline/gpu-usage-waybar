@@ -9,7 +9,7 @@ pub struct AmdGpuStatus {
 }
 
 impl AmdGpuStatus {
-    pub fn new(amd_sys_fs: &'static AmdSysFS) -> Result<Self> {
+    pub const fn new(amd_sys_fs: &'static AmdSysFS) -> Result<Self> {
         Ok(Self { amd_sys_fs })
     }
 }
