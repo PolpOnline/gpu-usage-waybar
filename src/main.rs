@@ -1,43 +1,62 @@
-use std::sync::Mutex;
+use std::time::Duration;
 
-use color_eyre::eyre::{anyhow, Result};
-use nvml_wrapper::error::NvmlError;
+use color_eyre::eyre::{eyre, Result};
+use lazy_static::lazy_static;
+use nvidia_smi_waybar::amd::AmdSysFS;
+use nvidia_smi_waybar::gpu_status::{GpuStatus, GpuStatusData};
 use nvml_wrapper::Nvml;
-use once_cell::sync::OnceCell;
 use serde::Serialize;
 
-use nvidia_smi_waybar::gpu_status::GpuStatus;
+const UPDATE_INTERVAL: Duration = Duration::from_secs(1);
 
-static NVML_INSTANCE: OnceCell<Mutex<core::result::Result<Nvml, NvmlError>>> = OnceCell::new();
+pub enum Instance {
+    Nvml(Box<Nvml>),
+    Amd(Box<AmdSysFS>),
+}
 
-fn main() -> Result<()> {
-    let nvml = NVML_INSTANCE
-        .get_or_init(|| {
-            let nvml = Nvml::init();
-            Mutex::new(nvml)
-        })
-        .lock()
-        .unwrap();
+impl Instance {
+    /// Get the instance based on the GPU brand.
+    pub fn new() -> Result<Self> {
+        let modules_file = std::fs::read_to_string("/proc/modules")?;
 
-    let nvml = nvml
-        .as_ref()
-        .map_err(|e| anyhow!("Failed to initialize NVML {}", e))?;
+        if modules_file.contains("nvidia") {
+            return Ok(Instance::Nvml(Box::new(Nvml::init()?)));
+        }
+        if modules_file.contains("amdgpu") {
+            return Ok(Instance::Amd(Box::new(AmdSysFS::init()?)));
+        }
 
-    let device = nvml.device_by_index(0)?;
-
-    loop {
-        let gpu_status = GpuStatus::new(&device)?;
-
-        let output: OutputFormat = gpu_status.into();
-
-        println!("{}", serde_json::to_string(&output)?);
-
-        std::thread::sleep(std::time::Duration::from_secs(1));
+        Err(eyre!("No supported GPU found"))
     }
 }
 
-impl From<GpuStatus> for OutputFormat {
-    fn from(gpu_status: GpuStatus) -> Self {
+lazy_static! {
+    pub static ref INSTANCE: Instance = Instance::new().unwrap();
+}
+
+fn main() -> Result<()> {
+    color_eyre::install()?;
+
+    let gpu_status_handler: Box<dyn GpuStatus> = match &*INSTANCE {
+        Instance::Nvml(nvml) => Box::new(nvidia_smi_waybar::nvidia::NvidiaGpuStatus::new(nvml)?),
+        Instance::Amd(amd_sys_fs) => {
+            Box::new(nvidia_smi_waybar::amd::AmdGpuStatus::new(amd_sys_fs)?)
+        }
+    };
+
+    loop {
+        let gpu_status_data = gpu_status_handler.compute()?;
+
+        let output: OutputFormat = gpu_status_data.into();
+
+        println!("{}", serde_json::to_string(&output)?);
+
+        std::thread::sleep(UPDATE_INTERVAL);
+    }
+}
+
+impl From<GpuStatusData> for OutputFormat {
+    fn from(gpu_status: GpuStatusData) -> OutputFormat {
         OutputFormat {
             text: gpu_status.get_text(),
             tooltip: gpu_status.get_tooltip(),

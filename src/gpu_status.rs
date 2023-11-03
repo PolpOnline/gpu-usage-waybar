@@ -1,87 +1,100 @@
+use amdgpu_sysfs::gpu_handle::PerformanceLevel;
 use color_eyre::eyre::Result;
-use nvml_wrapper::enum_wrappers::device::{PcieUtilCounter, PerformanceState, TemperatureSensor};
-use nvml_wrapper::Device;
 use strum::Display;
 
 #[derive(Default)]
-pub struct GpuStatus {
-    pub(crate) gpu_util: u32,
-    pub(crate) mem_used: f64,
-    pub(crate) mem_total: f64,
-    pub(crate) mem_util: u32,
-    pub(crate) dec_util: u32,
-    pub(crate) enc_util: u32,
-    pub(crate) temp: u32,
-    pub(crate) power: f64,
-    pub(crate) pstate: PState,
-    pub(crate) fan_speed: u32,
-    pub(crate) tx: f64,
-    pub(crate) rx: f64,
+pub struct GpuStatusData {
+    /// GPU utilization in percent.
+    pub(crate) gpu_util: Option<u8>,
+    /// Memory used in MiB.
+    pub(crate) mem_used: Option<f64>,
+    /// Total memory in MiB.
+    pub(crate) mem_total: Option<f64>,
+    /// Memory data bus utilization in percent.
+    pub(crate) mem_util: Option<u8>,
+    /// Decoder utilization in percent.
+    pub(crate) dec_util: Option<u8>,
+    /// Encoder utilization in percent.
+    pub(crate) enc_util: Option<u8>,
+    /// Temperature in degrees Celsius.
+    pub(crate) temp: Option<u8>,
+    /// Power usage in Watts.
+    pub(crate) power: Option<f64>,
+    /// (NVIDIA) Performance state.
+    pub(crate) p_state: Option<PState>,
+    /// (AMD) Performance Level
+    pub(crate) p_level: Option<PerformanceLevel>,
+    /// Fan speed in percent.
+    pub(crate) fan_speed: Option<u8>,
+    /// PCIe TX throughput in MiB/s.
+    pub(crate) tx: Option<f64>,
+    /// PCIe RX throughput in MiB/s.
+    pub(crate) rx: Option<f64>,
 }
 
-impl GpuStatus {
-    pub fn new(device: &Device) -> Result<Self> {
-        let utilization_rates = device.utilization_rates()?;
-        let memory_info_in_bytes = device.memory_info()?;
+/// Formats the value if it is `Some`, appends it to the `fmt` string,
+/// and pushes it to the `target` string.
+macro_rules! conditional_format {
+    ($target:ident, $fmt:expr, $src:expr) => {
+        if let Some(value) = $src {
+            $target.push_str(&format!($fmt, value));
+        }
+    };
+}
 
-        let gpu_status = GpuStatus {
-            gpu_util: utilization_rates.gpu,
-            mem_used: (memory_info_in_bytes.used as f64 / 1024f64 / 1024f64),
-            mem_total: (memory_info_in_bytes.total as f64 / 1024f64 / 1024f64),
-            mem_util: utilization_rates.memory,
-            dec_util: device.decoder_utilization()?.utilization,
-            enc_util: device.encoder_utilization()?.utilization,
-            temp: device.temperature(TemperatureSensor::Gpu)?,
-            power: (device.power_usage()? as f64 / 1000f64), // convert to W from mW
-            pstate: device.performance_state()?.into(),
-            fan_speed: device.fan_speed(0u32)?,
-            tx: (device.pcie_throughput(PcieUtilCounter::Send)? as f64 / 1000f64), // convert to MiB/s from KiB/s
-            rx: (device.pcie_throughput(PcieUtilCounter::Receive)? as f64 / 1000f64),
-        };
-
-        Ok(gpu_status)
-    }
-
-    pub(crate) fn compute_mem_usage(&self) -> u8 {
-        let mem_used_percent = (self.mem_used / self.mem_total) * 100f64;
-        mem_used_percent.round() as u8
+impl GpuStatusData {
+    pub(crate) fn compute_mem_usage(&self) -> Option<u8> {
+        if let (Some(mem_used), Some(mem_total)) = (self.mem_used, self.mem_total) {
+            Some((mem_used / mem_total * 100f64).round() as u8)
+        } else {
+            None
+        }
     }
 
     pub fn get_text(&self) -> String {
-        format!("{}%|{}%", self.gpu_util.clone(), self.compute_mem_usage())
+        let mut text = String::new();
+
+        conditional_format!(text, "{}%", self.gpu_util);
+        text.push('|');
+        conditional_format!(text, "{}%", self.compute_mem_usage());
+
+        text
     }
 
     pub fn get_tooltip(&self) -> String {
-        format!(
-            "GPU: {}%\n\
-            MEM USED: {}/{} MiB ({}%)\n\
-            MEM R/W: {}%\n\
-            DEC: {}%\n\
-            ENC: {}%\n\
-            TEMP: {}°C\n\
-            POWER: {}W\n\
-            PSTATE: {}\n\
-            FAN SPEED: {}%\n\
-            TX: {} MiB/s\n\
-            RX: {} MiB/s",
-            self.gpu_util,
-            self.mem_used.round(),
-            self.mem_total,
-            self.compute_mem_usage(),
-            self.mem_util,
-            self.dec_util,
-            self.enc_util,
-            self.temp,
-            self.power,
-            self.pstate,
-            self.fan_speed,
-            self.tx,
-            self.rx
-        )
+        let mut tooltip = String::new();
+
+        conditional_format!(tooltip, "GPU: {}%\n", self.gpu_util);
+        if let (Some(mem_used), Some(mem_total), Some(mem_usage)) =
+            (self.mem_used, self.mem_total, self.compute_mem_usage())
+        {
+            tooltip.push_str(&format!(
+                concat!("MEM USED: {}/{} MiB ({}%)", "\n"),
+                mem_used.round(),
+                mem_total,
+                mem_usage
+            ));
+        }
+        conditional_format!(tooltip, "MEM R/W: {}%\n", self.mem_util);
+        conditional_format!(tooltip, "DEC: {}%\n", self.dec_util);
+        conditional_format!(tooltip, "ENC: {}%\n", self.enc_util);
+        conditional_format!(tooltip, "TEMP: {}°C\n", self.temp);
+        conditional_format!(tooltip, "POWER: {}W\n", self.power);
+        conditional_format!(tooltip, "PSTATE: {}\n", self.p_state);
+        conditional_format!(tooltip, "PLEVEL: {}\n", self.p_level);
+        conditional_format!(tooltip, "FAN SPEED: {}%\n", self.fan_speed);
+        conditional_format!(tooltip, "TX: {} MiB/s\n", self.tx);
+        conditional_format!(tooltip, "RX: {} MiB/s\n", self.rx);
+
+        tooltip.trim().to_string()
     }
 }
 
-#[derive(Default, Display)]
+pub trait GpuStatus {
+    fn compute(&self) -> Result<GpuStatusData>;
+}
+
+#[derive(Default, Display, Copy, Clone)]
 pub(crate) enum PState {
     P0,
     P1,
@@ -101,28 +114,4 @@ pub(crate) enum PState {
     P15,
     #[default]
     Unknown,
-}
-
-impl From<PerformanceState> for PState {
-    fn from(value: PerformanceState) -> Self {
-        match value {
-            PerformanceState::Zero => PState::P0,
-            PerformanceState::One => PState::P1,
-            PerformanceState::Two => PState::P2,
-            PerformanceState::Three => PState::P3,
-            PerformanceState::Four => PState::P4,
-            PerformanceState::Five => PState::P5,
-            PerformanceState::Six => PState::P6,
-            PerformanceState::Seven => PState::P7,
-            PerformanceState::Eight => PState::P8,
-            PerformanceState::Nine => PState::P9,
-            PerformanceState::Ten => PState::P10,
-            PerformanceState::Eleven => PState::P11,
-            PerformanceState::Twelve => PState::P12,
-            PerformanceState::Thirteen => PState::P13,
-            PerformanceState::Fourteen => PState::P14,
-            PerformanceState::Fifteen => PState::P15,
-            PerformanceState::Unknown => PState::Unknown,
-        }
-    }
 }
