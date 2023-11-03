@@ -17,14 +17,34 @@ impl AmdGpuStatus {
 impl GpuStatus for AmdGpuStatus {
     fn compute(&self) -> Result<GpuStatusData> {
         let gpu_handle = &self.amd_sys_fs.gpu_handle;
+        let hw_mon = &gpu_handle.hw_monitors[0];
 
-        // TODO: add support for more metrics
+        let temps = hw_mon.get_temps();
+        const TEMP_SENSOR_NAME: &str = "edge";
+        let temp = temps
+            .iter()
+            .find(|t| t.0 == TEMP_SENSOR_NAME)
+            .ok_or(eyre!(format!(
+                "No \"{}\" temperature sensor found",
+                TEMP_SENSOR_NAME
+            )))?
+            .1
+            .current;
 
         Ok(GpuStatusData {
-            gpu_util: Some(gpu_handle.get_busy_percent()?),
-            mem_used: Some(gpu_handle.get_used_vram()? as f64 / 1024f64 / 1024f64), // convert to MiB from B
-            mem_total: Some(gpu_handle.get_total_vram()? as f64 / 1024f64 / 1024f64),
-            p_level: Some(gpu_handle.get_power_force_performance_level()?),
+            gpu_util: gpu_handle.get_busy_percent().ok(),
+            mem_used: gpu_handle
+                .get_used_vram()
+                .ok()
+                .map(|v| v as f64 / 1024f64 / 1024f64), // convert to MiB from B
+            mem_total: gpu_handle
+                .get_total_vram()
+                .ok()
+                .map(|v| v as f64 / 1024f64 / 1024f64),
+            temp: temp.map(|v| v.round() as u8),
+            power: hw_mon.get_power_input().ok(),
+            p_level: gpu_handle.get_power_force_performance_level().ok(),
+            fan_speed: hw_mon.get_fan_current().ok().map(|v| v as u8),
             ..Default::default()
         })
     }
