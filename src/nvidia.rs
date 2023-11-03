@@ -23,18 +23,18 @@ impl GpuStatus for NvidiaGpuStatus<'_> {
         let memory_info_in_bytes = device.memory_info()?;
 
         let gpu_status = GpuStatusData {
-            gpu_util: utilization_rates.gpu as u8,
-            mem_used: (memory_info_in_bytes.used as f64 / 1024f64 / 1024f64),
-            mem_total: (memory_info_in_bytes.total as f64 / 1024f64 / 1024f64),
-            mem_util: utilization_rates.memory as u8,
-            dec_util: device.decoder_utilization()?.utilization as u8,
-            enc_util: device.encoder_utilization()?.utilization as u8,
-            temp: device.temperature(TemperatureSensor::Gpu)? as u8,
-            power: (device.power_usage()? as f64 / 1000f64), // convert to W from mW
-            p_state: device.performance_state()?.into(),
-            fan_speed: device.fan_speed(0u32)? as u8,
-            tx: (device.pcie_throughput(PcieUtilCounter::Send)? as f64 / 1000f64), // convert to MiB/s from KiB/s
-            rx: (device.pcie_throughput(PcieUtilCounter::Receive)? as f64 / 1000f64),
+            gpu_util: Some(utilization_rates.gpu as u8),
+            mem_used: Some(memory_info_in_bytes.used as f64 / 1024f64 / 1024f64), // convert to MiB from B
+            mem_total: Some(memory_info_in_bytes.total as f64 / 1024f64 / 1024f64),
+            mem_util: Some(utilization_rates.memory as u8),
+            dec_util: Some(device.decoder_utilization()?.utilization as u8),
+            enc_util: Some(device.encoder_utilization()?.utilization as u8),
+            temp: Some(device.temperature(TemperatureSensor::Gpu)? as u8),
+            power: Some(device.power_usage()? as f64 / 1000f64), // convert to W from mW
+            p_state: Some(device.performance_state()?.into()),
+            fan_speed: Some(device.fan_speed(0u32)? as u8),
+            tx: Some(device.pcie_throughput(PcieUtilCounter::Send)? as f64 / 1000f64), // convert to MiB/s from KiB/s
+            rx: Some(device.pcie_throughput(PcieUtilCounter::Receive)? as f64 / 1000f64),
         };
 
         Ok(gpu_status)

@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use color_eyre::eyre::{eyre, Result};
 use lazy_static::lazy_static;
+use nvidia_smi_waybar::amd::AmdSysFS;
 use nvidia_smi_waybar::gpu_status::{GpuStatus, GpuStatusData};
 use nvml_wrapper::Nvml;
 use serde::Serialize;
@@ -10,7 +11,7 @@ const UPDATE_INTERVAL: Duration = Duration::from_secs(1);
 
 pub enum Instance {
     Nvml(Box<Nvml>),
-    Amd,
+    Amd(Box<AmdSysFS>),
 }
 
 impl Instance {
@@ -22,7 +23,7 @@ impl Instance {
             return Ok(Instance::Nvml(Box::new(Nvml::init()?)));
         }
         if modules_file.contains("amdgpu") {
-            return Ok(Instance::Amd);
+            return Ok(Instance::Amd(Box::new(AmdSysFS::init()?)));
         }
 
         Err(eyre!("No supported GPU found"))
@@ -38,7 +39,9 @@ fn main() -> Result<()> {
 
     let gpu_status_handler: Box<dyn GpuStatus> = match &*INSTANCE {
         Instance::Nvml(nvml) => Box::new(nvidia_smi_waybar::nvidia::NvidiaGpuStatus::new(nvml)?),
-        Instance::Amd => unimplemented!(),
+        Instance::Amd(amd_sys_fs) => {
+            Box::new(nvidia_smi_waybar::amd::AmdGpuStatus::new(amd_sys_fs)?)
+        }
     };
 
     loop {
