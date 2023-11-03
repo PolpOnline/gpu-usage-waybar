@@ -34,21 +34,8 @@ pub struct GpuStatusData {
 macro_rules! conditional_format {
     ($target:ident, $fmt:expr, $src:expr) => {
         if let Some(value) = $src {
-            $target.push_str(&format!(concat!($fmt, "\n"), value));
+            $target.push_str(&format!($fmt, value));
         }
-    };
-}
-
-/// Formats the value if it is `Some`, appends it to the `fmt` string,
-/// and pushes it to the `target` string.
-/// Does not append a newline.
-macro_rules! conditional_format_no_newline {
-    ($target:ident, $fmt:expr, $($src:expr),*) => {
-        $(
-            if let Some(value) = $src {
-                $target.push_str(&format!($fmt, value));
-            }
-        )*
     };
 }
 
@@ -64,9 +51,9 @@ impl GpuStatusData {
     pub fn get_text(&self) -> String {
         let mut text = String::new();
 
-        conditional_format_no_newline!(text, "{}%", self.gpu_util);
+        conditional_format!(text, "{}%", self.gpu_util);
         text.push('|');
-        conditional_format_no_newline!(text, "{}%", self.compute_mem_usage());
+        conditional_format!(text, "{}%", self.compute_mem_usage());
 
         text
     }
@@ -74,7 +61,7 @@ impl GpuStatusData {
     pub fn get_tooltip(&self) -> String {
         let mut tooltip = String::new();
 
-        conditional_format!(tooltip, "GPU: {}%", self.gpu_util);
+        conditional_format!(tooltip, "GPU: {}%\n", self.gpu_util);
         if let (Some(mem_used), Some(mem_total), Some(mem_usage)) =
             (self.mem_used, self.mem_total, self.compute_mem_usage())
         {
@@ -85,15 +72,15 @@ impl GpuStatusData {
                 mem_usage
             ));
         }
-        conditional_format!(tooltip, "MEM R/W: {}%", self.mem_util);
-        conditional_format!(tooltip, "DEC: {}%", self.dec_util);
-        conditional_format!(tooltip, "ENC: {}%", self.enc_util);
-        conditional_format!(tooltip, "TEMP: {}°C", self.temp);
-        conditional_format!(tooltip, "POWER: {}W", self.power);
-        conditional_format!(tooltip, "PSTATE: {}", self.p_state);
-        conditional_format!(tooltip, "FAN SPEED: {}%", self.fan_speed);
-        conditional_format!(tooltip, "TX: {} MiB/s", self.tx);
-        conditional_format!(tooltip, "RX: {} MiB/s", self.rx);
+        conditional_format!(tooltip, "MEM R/W: {}%\n", self.mem_util);
+        conditional_format!(tooltip, "DEC: {}%\n", self.dec_util);
+        conditional_format!(tooltip, "ENC: {}%\n", self.enc_util);
+        conditional_format!(tooltip, "TEMP: {}°C\n", self.temp);
+        conditional_format!(tooltip, "POWER: {}W\n", self.power);
+        conditional_format!(tooltip, "PSTATE: {}\n", self.p_state);
+        conditional_format!(tooltip, "FAN SPEED: {}%\n", self.fan_speed);
+        conditional_format!(tooltip, "TX: {} MiB/s\n", self.tx);
+        conditional_format!(tooltip, "RX: {} MiB/s\n", self.rx);
 
         tooltip.trim().to_string()
     }
