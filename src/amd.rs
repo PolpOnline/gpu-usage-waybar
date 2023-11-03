@@ -24,15 +24,8 @@ impl GpuStatus for AmdGpuStatus {
             gpu_util: Some(gpu_handle.get_busy_percent()?),
             mem_used: Some(gpu_handle.get_used_vram()? as f64 / 1024f64 / 1024f64), // convert to MiB from B
             mem_total: Some(gpu_handle.get_total_vram()? as f64 / 1024f64 / 1024f64),
-            mem_util: None,
-            dec_util: None,
-            enc_util: None,
-            temp: None,
-            power: None,
-            p_state: None,
-            fan_speed: None,
-            tx: None,
-            rx: None,
+            p_level: Some(gpu_handle.get_power_force_performance_level()?),
+            ..Default::default()
         })
     }
 }

@@ -1,3 +1,4 @@
+use amdgpu_sysfs::gpu_handle::PerformanceLevel;
 use color_eyre::eyre::Result;
 use strum::Display;
 
@@ -19,8 +20,10 @@ pub struct GpuStatusData {
     pub(crate) temp: Option<u8>,
     /// Power usage in Watts.
     pub(crate) power: Option<f64>,
-    /// Performance state.
+    /// (NVIDIA) Performance state.
     pub(crate) p_state: Option<PState>,
+    /// (AMD) Performance Level
+    pub(crate) p_level: Option<PerformanceLevel>,
     /// Fan speed in percent.
     pub(crate) fan_speed: Option<u8>,
     /// PCIe TX throughput in MiB/s.
@@ -78,6 +81,7 @@ impl GpuStatusData {
         conditional_format!(tooltip, "TEMP: {}°C\n", self.temp);
         conditional_format!(tooltip, "POWER: {}W\n", self.power);
         conditional_format!(tooltip, "PSTATE: {}\n", self.p_state);
+        conditional_format!(tooltip, "PLEVEL: {}\n", self.p_level);
         conditional_format!(tooltip, "FAN SPEED: {}%\n", self.fan_speed);
         conditional_format!(tooltip, "TX: {} MiB/s\n", self.tx);
         conditional_format!(tooltip, "RX: {} MiB/s\n", self.rx);

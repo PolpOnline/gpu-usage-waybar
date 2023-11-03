@@ -35,6 +35,7 @@ impl GpuStatus for NvidiaGpuStatus<'_> {
             fan_speed: Some(device.fan_speed(0u32)? as u8),
             tx: Some(device.pcie_throughput(PcieUtilCounter::Send)? as f64 / 1000f64), // convert to MiB/s from KiB/s
             rx: Some(device.pcie_throughput(PcieUtilCounter::Receive)? as f64 / 1000f64),
+            ..Default::default()
         };
 
         Ok(gpu_status)
