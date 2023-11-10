@@ -1,9 +1,14 @@
+pub mod amd;
+pub mod gpu_status;
+pub mod nvidia;
+
 use std::time::Duration;
 
+use crate::amd::{AmdGpuStatus, AmdSysFS};
+use crate::gpu_status::{GpuStatus, GpuStatusData};
+use crate::nvidia::NvidiaGpuStatus;
 use color_eyre::eyre::{eyre, Result};
 use lazy_static::lazy_static;
-use nvidia_smi_waybar::amd::AmdSysFS;
-use nvidia_smi_waybar::gpu_status::{GpuStatus, GpuStatusData};
 use nvml_wrapper::Nvml;
 use serde::Serialize;
 
@@ -39,10 +44,8 @@ fn main() -> Result<()> {
     color_eyre::install()?;
 
     let gpu_status_handler: Box<dyn GpuStatus> = match &*INSTANCE {
-        Instance::Nvml(nvml) => Box::new(nvidia_smi_waybar::nvidia::NvidiaGpuStatus::new(nvml)?),
-        Instance::Amd(amd_sys_fs) => {
-            Box::new(nvidia_smi_waybar::amd::AmdGpuStatus::new(amd_sys_fs)?)
-        }
+        Instance::Nvml(nvml) => Box::new(NvidiaGpuStatus::new(nvml)?),
+        Instance::Amd(amd_sys_fs) => Box::new(AmdGpuStatus::new(amd_sys_fs)?),
     };
 
     loop {

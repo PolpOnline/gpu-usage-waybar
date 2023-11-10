@@ -1,5 +1,5 @@
 [package]
-name = "nvidia-smi-waybar"
+name = "gpu-usage-waybar"
 version = "0.1.0"
 edition = "2021"
 
