@@ -82,7 +82,7 @@ impl AmdSysFS {
                     .to_str()
                     .ok_or(eyre!("Path isn't a valid UTF-8"))?;
 
-                let re = Regex::new(r"^card1$")?;
+                let re = Regex::new(r"^card[0-9]*$")?;
 
                 if re.is_match(drm_device) {
                     path.push(PathBuf::from("device"));
