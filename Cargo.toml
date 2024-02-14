@@ -4,14 +4,18 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-amdgpu-sysfs = "0.12.3"
+amdgpu-sysfs = "0.14.0"
 color-eyre = "0.6.2"
 lazy_static = "1.4.0"
-nvml-wrapper = "0.9.0"
+nvml-wrapper = "0.10.0"
 regex = "1.10.2"
 serde = { version = "1.0.167", features = ["derive"] }
 serde_json = "1.0.100"
-strum = { version = "0.25.0", features = ["derive"] }
+strum = { version = "0.26.1", features = ["derive"] }
 
 [profile.dev.package.backtrace]
 opt-level = 3
+
+# Rust does not inline across crates if link-time optimization (LTO) is off, which it is by default.
+[profile.release]
+lto = true
