@@ -1,17 +1,17 @@
 [package]
 name = "gpu-usage-waybar"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 
 [dependencies]
 amdgpu-sysfs = "0.14.0"
-color-eyre = "0.6.2"
+color-eyre = "0.6.3"
 lazy_static = "1.4.0"
 nvml-wrapper = "0.10.0"
-regex = "1.10.2"
-serde = { version = "1.0.167", features = ["derive"] }
-serde_json = "1.0.100"
-strum = { version = "0.26.1", features = ["derive"] }
+regex = "1.10.3"
+serde = { version = "1.0.197", features = ["derive"] }
+serde_json = "1.0.114"
+strum = { version = "0.26.2", features = ["derive"] }
 
 [profile.dev.package.backtrace]
 opt-level = 3
