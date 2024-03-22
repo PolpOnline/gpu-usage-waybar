@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/nvidia-smi-waybar.iml" filepath="$PROJECT_DIR$/.idea/nvidia-smi-waybar.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/gpu-usage-waybar.iml" filepath="$PROJECT_DIR$/.idea/gpu-usage-waybar.iml" />
     </modules>
   </component>
 </project>
