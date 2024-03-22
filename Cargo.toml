@@ -1,7 +1,12 @@
 [package]
 name = "gpu-usage-waybar"
+authors = ["PolpOnline"]
 version = "0.1.1"
 edition = "2021"
+description = "A tool to display gpu usage in Waybar"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/PolpOnline/gpu-usage-waybar"
 
 [dependencies]
 amdgpu-sysfs = "0.14.0"
