@@ -1,5 +1,7 @@
 # GPU USAGE WAYBAR
 
+![crates.io](https://img.shields.io/crates/v/gpu-usage-waybar.svg)
+
 This is a simple tool I made to add GPU usage to Waybar.
 
 It is compatible with both NVIDIA and AMD cards
