@@ -1,6 +1,6 @@
 # GPU USAGE WAYBAR
 
-![crates.io](https://img.shields.io/crates/v/gpu-usage-waybar.svg)
+[![crates.io](https://img.shields.io/crates/v/gpu-usage-waybar.svg)](https://crates.io/crates/gpu-usage-waybar)
 
 This is a simple tool I made to add GPU usage to Waybar.
 
