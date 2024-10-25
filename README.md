@@ -35,11 +35,11 @@ Add a module to the top of the config specifying where the module should be posi
 Add the custom module to the config
 
 ```json
-  "custom/gpu-usage": {
-    "format": "{} {icon}",
-    "exec": "gpu-usage-waybar",
-    "return-type": "json",
-    "format-icons": "󰾲",
-    "on-click": "kitty nvtop",
-  }
+"custom/gpu-usage": {
+  "format": "{} {icon}",
+  "exec": "gpu-usage-waybar",
+  "return-type": "json",
+  "format-icons": "󰾲",
+  "on-click": "kitty nvtop",
+}
 ```
