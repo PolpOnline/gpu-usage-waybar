@@ -29,7 +29,7 @@ Add a custom module to Waybar
 Add a module to the top of the config specifying where the module should be positioned
 
 ```json
-  "modules-left": ["...", "custom/gpu-usage", "..."]
+"modules-left": ["...", "custom/gpu-usage", "..."]
 ```
 
 Add the custom module to the config
