@@ -2,6 +2,7 @@ pub mod amd;
 pub mod gpu_status;
 pub mod nvidia;
 
+use clap::Parser;
 use std::time::Duration;
 
 use crate::amd::{AmdGpuStatus, AmdSysFS};
@@ -40,8 +41,18 @@ lazy_static! {
     pub static ref INSTANCE: Instance = Instance::new().unwrap();
 }
 
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// Add this flag if you don't want to display memory information in the text output.
+    #[arg(long, default_value_t = false)]
+    text_no_memory: bool,
+}
+
 fn main() -> Result<()> {
     color_eyre::install()?;
+
+    let args = Args::parse();
 
     let gpu_status_handler: Box<dyn GpuStatus> = match &*INSTANCE {
         Instance::Nvml(nvml) => Box::new(NvidiaGpuStatus::new(nvml)?),
@@ -51,7 +62,7 @@ fn main() -> Result<()> {
     loop {
         let gpu_status_data = gpu_status_handler.compute()?;
 
-        let output: OutputFormat = gpu_status_data.into();
+        let output = format_output(gpu_status_data, !args.text_no_memory);
 
         println!("{}", serde_json::to_string(&output)?);
 
@@ -59,12 +70,10 @@ fn main() -> Result<()> {
     }
 }
 
-impl From<GpuStatusData> for OutputFormat {
-    fn from(gpu_status: GpuStatusData) -> OutputFormat {
-        OutputFormat {
-            text: gpu_status.get_text(),
-            tooltip: gpu_status.get_tooltip(),
-        }
+fn format_output(gpu_status: GpuStatusData, display_mem_info: bool) -> OutputFormat {
+    OutputFormat {
+        text: gpu_status.get_text(display_mem_info),
+        tooltip: gpu_status.get_tooltip(),
     }
 }
 

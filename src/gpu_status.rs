@@ -51,12 +51,14 @@ impl GpuStatusData {
         }
     }
 
-    pub fn get_text(&self) -> String {
+    pub fn get_text(&self, display_mem_info: bool) -> String {
         let mut text = String::new();
 
         conditional_format!(text, "{}%", self.gpu_util);
-        text.push('|');
-        conditional_format!(text, "{}%", self.compute_mem_usage());
+
+        if display_mem_info {
+            conditional_format!(text, "|{}%", self.compute_mem_usage());
+        }
 
         text
     }
