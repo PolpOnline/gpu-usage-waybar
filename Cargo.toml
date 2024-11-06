@@ -25,3 +25,8 @@ opt-level = 3
 # Rust does not inline across crates if link-time optimization (LTO) is off, which it is by default.
 [profile.release]
 lto = true
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
