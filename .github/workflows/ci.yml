@@ -1,4 +1,4 @@
-name: Rust Clippy
+name: Rust
 
 on: [push, pull_request]
 
@@ -10,3 +10,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Run Clippy
         run: cargo clippy -- -D warnings
+      - name: Build
+        run: cargo build --release
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gpu-usage-waybar
+          path: target/release/gpu-usage-waybar
