@@ -1,8 +1,8 @@
 # GPU USAGE WAYBAR
 
-![Crates.io Version](https://img.shields.io/crates/v/gpu-usage-waybar?style=for-the-badge)
-![AUR Version](https://img.shields.io/aur/version/gpu-usage-waybar-git?style=for-the-badge)
-![GitHub License](https://img.shields.io/github/license/polponline/gpu-usage-waybar?style=for-the-badge)
+[![Crates.io Version](https://img.shields.io/crates/v/gpu-usage-waybar?style=for-the-badge)](https://crates.io/crates/gpu-usage-waybar)
+[![AUR Version](https://img.shields.io/aur/version/gpu-usage-waybar-git?style=for-the-badge)](https://aur.archlinux.org/packages/gpu-usage-waybar-git)
+[![GitHub License](https://img.shields.io/github/license/polponline/gpu-usage-waybar?style=for-the-badge)](https://github.com/PolpOnline/gpu-usage-waybar/blob/master/LICENSE)
 
 This is a simple tool I made to add GPU usage to Waybar.
 
