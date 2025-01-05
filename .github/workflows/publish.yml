@@ -1,7 +1,6 @@
 name: Publish to Cargo
 permissions:
-  contents: read
-  metadata: write
+  contents: write
 
 on:
   push:
