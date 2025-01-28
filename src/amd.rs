@@ -71,6 +71,8 @@ impl AmdSysFS {
         let drm_dir = PathBuf::from("/sys/class/drm");
         let mut drm_gpus = Vec::new();
 
+        let card_regex = Regex::new(r"^card[0-9]*$")?;
+
         for entry in drm_dir.read_dir()? {
             let entry = entry?;
             let mut path = entry.path();
@@ -82,9 +84,7 @@ impl AmdSysFS {
                     .to_str()
                     .ok_or(eyre!("Path isn't a valid UTF-8"))?;
 
-                let re = Regex::new(r"^card[0-9]*$")?;
-
-                if re.is_match(drm_device) {
+                if card_regex.is_match(drm_device) {
                     path.push(PathBuf::from("device"));
                     drm_gpus.push(path);
                 }
