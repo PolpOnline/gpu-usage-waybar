@@ -14,7 +14,9 @@ impl NvidiaGpuStatus<'_> {
         let device = instance.device_by_index(0)?;
 
         // Query PCI info just once
-        let bus_id = device.pci_info()?.bus_id; 
+        // NVML returns a PCI domain up to 0xffffffff; need to truncate
+        // to match sysfs
+        let bus_id = device.pci_info()?.bus_id.chars().skip(4).collect();
 
         Ok(Self { device, bus_id })
     }
