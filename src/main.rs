@@ -13,9 +13,6 @@ use lazy_static::lazy_static;
 use nvml_wrapper::Nvml;
 use serde::Serialize;
 
-/// Polling interval
-const UPDATE_INTERVAL: Duration = Duration::from_secs(1);
-
 pub enum Instance {
     Nvml(Box<Nvml>),
     Amd(Box<AmdSysFS>),
@@ -47,6 +44,10 @@ struct Args {
     /// Add this flag if you don't want to display memory information in the text output.
     #[arg(long, default_value_t = false)]
     text_no_memory: bool,
+
+    /// Polling interval in milliseconds
+    #[arg(long, default_value_t = 1000)]
+    interval: u64,
 }
 
 fn main() -> Result<()> {
@@ -59,6 +60,8 @@ fn main() -> Result<()> {
         Instance::Amd(amd_sys_fs) => Box::new(AmdGpuStatus::new(amd_sys_fs)?),
     };
 
+    let update_interval = Duration::from_millis(args.interval);
+
     loop {
         let gpu_status_data = gpu_status_handler.compute()?;
 
@@ -66,7 +69,7 @@ fn main() -> Result<()> {
 
         println!("{}", serde_json::to_string(&output)?);
 
-        std::thread::sleep(UPDATE_INTERVAL);
+        std::thread::sleep(update_interval);
     }
 }
 
