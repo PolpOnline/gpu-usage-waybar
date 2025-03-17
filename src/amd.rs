@@ -32,6 +32,7 @@ impl GpuStatus for AmdGpuStatus {
             .current;
 
         Ok(GpuStatusData {
+            powered_on: true,
             gpu_util: gpu_handle.get_busy_percent().ok(),
             mem_used: gpu_handle
                 .get_used_vram()
