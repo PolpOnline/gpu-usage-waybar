@@ -22,9 +22,16 @@ impl NvidiaGpuStatus<'_> {
     }
 }
 
-fn is_powered_on(bus_id: &str) -> Result<bool, std::io::Error> {
+fn is_powered_on(bus_id: &str) -> Result<bool> {
     let path = format!("/sys/bus/pci/devices/{}/power/runtime_status", bus_id);
-    let status = fs::read_to_string(path)?.trim().to_string();
+    let status = match fs::read_to_string(path) {
+        Ok(s) => s,
+        Err(_) => {
+            // Sometimes the runtime status file doesn't exist or doesn't contain the expected value
+            return Ok(true);
+        }
+    };
+    let status = status.trim().to_string();
     let powered_on = status == "active";
     Ok(powered_on)
 }
