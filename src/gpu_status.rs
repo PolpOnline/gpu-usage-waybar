@@ -71,7 +71,7 @@ impl GpuStatusData {
     pub fn get_tooltip(&self) -> String {
         let mut tooltip = String::new();
 
-        if self.powered_on { 
+        if self.powered_on {
             conditional_format!(tooltip, "GPU: {}%\n", self.gpu_util);
             if let (Some(mem_used), Some(mem_total), Some(mem_usage)) =
                 (self.mem_used, self.mem_total, self.compute_mem_usage())

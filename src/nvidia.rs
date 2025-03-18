@@ -6,7 +6,7 @@ use std::fs;
 
 pub struct NvidiaGpuStatus<'a> {
     device: Device<'a>,
-    bus_id: String
+    bus_id: String,
 }
 
 impl NvidiaGpuStatus<'_> {
@@ -36,48 +36,48 @@ impl GpuStatus for NvidiaGpuStatus<'_> {
         let powered_on = is_powered_on(&self.bus_id)?;
         let gpu_status = if !powered_on {
             GpuStatusData {
-              powered_on: false,
-              ..Default::default()
+                powered_on: false,
+                ..Default::default()
             }
         } else {
-          let device = &self.device;
+            let device = &self.device;
 
-          let utilization_rates = device.utilization_rates().ok();
-          let memory_info_in_bytes = device.memory_info().ok();
+            let utilization_rates = device.utilization_rates().ok();
+            let memory_info_in_bytes = device.memory_info().ok();
 
-          GpuStatusData {
-              powered_on: true,
-              gpu_util: utilization_rates.clone().map(|u| u.gpu as u8),
-              mem_used: memory_info_in_bytes
-                  .clone()
-                  .map(|m| m.used as f64 / 1024f64 / 1024f64), // convert to MiB from B
-              mem_total: memory_info_in_bytes.map(|m| m.total as f64 / 1024f64 / 1024f64),
-              mem_util: utilization_rates.map(|u| u.memory as u8),
-              dec_util: device
-                  .decoder_utilization()
-                  .ok()
-                  .map(|u| u.utilization as u8),
-              enc_util: device
-                  .encoder_utilization()
-                  .ok()
-                  .map(|u| u.utilization as u8),
-              temp: device
-                  .temperature(TemperatureSensor::Gpu)
-                  .ok()
-                  .map(|t| t as u8),
-              power: device.power_usage().ok().map(|p| p as f64 / 1000f64), // convert to W from mW
-              p_state: device.performance_state().ok().map(|p| p.into()),
-              fan_speed: device.fan_speed(0u32).ok().map(|f| f as u8),
-              tx: device
-                  .pcie_throughput(PcieUtilCounter::Send)
-                  .ok()
-                  .map(|t| t as f64 / 1000f64), // convert to MiB/s from KiB/s
-              rx: device
-                  .pcie_throughput(PcieUtilCounter::Receive)
-                  .ok()
-                  .map(|t| t as f64 / 1000f64),
-              ..Default::default()
-          }
+            GpuStatusData {
+                powered_on: true,
+                gpu_util: utilization_rates.clone().map(|u| u.gpu as u8),
+                mem_used: memory_info_in_bytes
+                    .clone()
+                    .map(|m| m.used as f64 / 1024f64 / 1024f64), // convert to MiB from B
+                mem_total: memory_info_in_bytes.map(|m| m.total as f64 / 1024f64 / 1024f64),
+                mem_util: utilization_rates.map(|u| u.memory as u8),
+                dec_util: device
+                    .decoder_utilization()
+                    .ok()
+                    .map(|u| u.utilization as u8),
+                enc_util: device
+                    .encoder_utilization()
+                    .ok()
+                    .map(|u| u.utilization as u8),
+                temp: device
+                    .temperature(TemperatureSensor::Gpu)
+                    .ok()
+                    .map(|t| t as u8),
+                power: device.power_usage().ok().map(|p| p as f64 / 1000f64), // convert to W from mW
+                p_state: device.performance_state().ok().map(|p| p.into()),
+                fan_speed: device.fan_speed(0u32).ok().map(|f| f as u8),
+                tx: device
+                    .pcie_throughput(PcieUtilCounter::Send)
+                    .ok()
+                    .map(|t| t as f64 / 1000f64), // convert to MiB/s from KiB/s
+                rx: device
+                    .pcie_throughput(PcieUtilCounter::Receive)
+                    .ok()
+                    .map(|t| t as f64 / 1000f64),
+                ..Default::default()
+            }
         };
 
         Ok(gpu_status)
