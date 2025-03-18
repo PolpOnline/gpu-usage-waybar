@@ -4,6 +4,8 @@ use strum::Display;
 
 #[derive(Default)]
 pub struct GpuStatusData {
+    /// Whether GPU is powered on at the PCI level.
+    pub(crate) powered_on: bool,
     /// GPU utilization in percent.
     pub(crate) gpu_util: Option<u8>,
     /// Memory used in MiB.
@@ -53,11 +55,14 @@ impl GpuStatusData {
 
     pub fn get_text(&self, display_mem_info: bool) -> String {
         let mut text = String::new();
+        if self.powered_on {
+            conditional_format!(text, "{}%", self.gpu_util);
 
-        conditional_format!(text, "{}%", self.gpu_util);
-
-        if display_mem_info {
-            conditional_format!(text, "|{}%", self.compute_mem_usage());
+            if display_mem_info {
+                conditional_format!(text, "|{}%", self.compute_mem_usage());
+            }
+        } else {
+            text = "Off".to_string();
         }
 
         text
@@ -66,27 +71,31 @@ impl GpuStatusData {
     pub fn get_tooltip(&self) -> String {
         let mut tooltip = String::new();
 
-        conditional_format!(tooltip, "GPU: {}%\n", self.gpu_util);
-        if let (Some(mem_used), Some(mem_total), Some(mem_usage)) =
-            (self.mem_used, self.mem_total, self.compute_mem_usage())
-        {
-            tooltip.push_str(&format!(
-                concat!("MEM USED: {}/{} MiB ({}%)", "\n"),
-                mem_used.round(),
-                mem_total,
-                mem_usage
-            ));
+        if self.powered_on { 
+            conditional_format!(tooltip, "GPU: {}%\n", self.gpu_util);
+            if let (Some(mem_used), Some(mem_total), Some(mem_usage)) =
+                (self.mem_used, self.mem_total, self.compute_mem_usage())
+            {
+                tooltip.push_str(&format!(
+                    concat!("MEM USED: {}/{} MiB ({}%)", "\n"),
+                    mem_used.round(),
+                    mem_total,
+                    mem_usage
+                ));
+            }
+            conditional_format!(tooltip, "MEM R/W: {}%\n", self.mem_util);
+            conditional_format!(tooltip, "DEC: {}%\n", self.dec_util);
+            conditional_format!(tooltip, "ENC: {}%\n", self.enc_util);
+            conditional_format!(tooltip, "TEMP: {}°C\n", self.temp);
+            conditional_format!(tooltip, "POWER: {}W\n", self.power);
+            conditional_format!(tooltip, "PSTATE: {}\n", self.p_state);
+            conditional_format!(tooltip, "PLEVEL: {}\n", self.p_level);
+            conditional_format!(tooltip, "FAN SPEED: {}%\n", self.fan_speed);
+            conditional_format!(tooltip, "TX: {} MiB/s\n", self.tx);
+            conditional_format!(tooltip, "RX: {} MiB/s\n", self.rx);
+        } else {
+            tooltip = "GPU powered off".to_string();
         }
-        conditional_format!(tooltip, "MEM R/W: {}%\n", self.mem_util);
-        conditional_format!(tooltip, "DEC: {}%\n", self.dec_util);
-        conditional_format!(tooltip, "ENC: {}%\n", self.enc_util);
-        conditional_format!(tooltip, "TEMP: {}°C\n", self.temp);
-        conditional_format!(tooltip, "POWER: {}W\n", self.power);
-        conditional_format!(tooltip, "PSTATE: {}\n", self.p_state);
-        conditional_format!(tooltip, "PLEVEL: {}\n", self.p_level);
-        conditional_format!(tooltip, "FAN SPEED: {}%\n", self.fan_speed);
-        conditional_format!(tooltip, "TX: {} MiB/s\n", self.tx);
-        conditional_format!(tooltip, "RX: {} MiB/s\n", self.rx);
 
         tooltip.trim().to_string()
     }
