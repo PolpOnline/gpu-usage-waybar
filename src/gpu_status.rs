@@ -1,3 +1,4 @@
+use crate::config::structs::ConfigFile;
 use amdgpu_sysfs::gpu_handle::PerformanceLevel;
 use color_eyre::eyre::Result;
 use strum::Display;
@@ -53,12 +54,12 @@ impl GpuStatusData {
         }
     }
 
-    pub fn get_text(&self, display_mem_info: bool) -> String {
+    pub fn get_text(&self, config: &ConfigFile) -> String {
         let mut text = String::new();
         if self.powered_on {
             conditional_format!(text, "{}%", self.gpu_util);
 
-            if display_mem_info {
+            if config.get_text_show_memory() {
                 conditional_format!(text, "|{}%", self.compute_mem_usage());
             }
         } else {
@@ -68,7 +69,7 @@ impl GpuStatusData {
         text
     }
 
-    pub fn get_tooltip(&self) -> String {
+    pub fn get_tooltip(&self, _config: &ConfigFile) -> String {
         let mut tooltip = String::new();
 
         if self.powered_on {
