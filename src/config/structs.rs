@@ -1,3 +1,4 @@
+use color_eyre::Result;
 use serde::Deserialize;
 use smart_default::SmartDefault;
 
@@ -13,7 +14,7 @@ pub struct ConfigFile {
 }
 
 impl ConfigFile {
-    pub fn merge_args_into_config(&mut self, args: &Args) -> color_eyre::Result<()> {
+    pub fn merge_args_into_config(&mut self, args: &Args) -> Result<()> {
         if args.text_no_memory {
             self.text_config = TextConfig { show_memory: false };
         }
