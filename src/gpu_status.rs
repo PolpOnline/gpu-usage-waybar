@@ -51,6 +51,15 @@ macro_rules! conditional_append {
             $target.push_str(&format!($fmt, value1, value2));
         }
     };
+
+    // Same but with four values
+    ($target:ident, $fmt:expr, $src1:expr, $src2:expr, $src3:expr, $src4:expr) => {
+        if let (Some(value1), Some(value2), Some(value3), Some(value4)) =
+            ($src1, $src2, $src3, $src4)
+        {
+            $target.push_str(&format!($fmt, value1, value2, value3, value4));
+        }
+    };
 }
 
 impl GpuStatusData {
@@ -89,20 +98,14 @@ impl GpuStatusData {
                 config.gpu_utilization.get_text(),
                 self.gpu_utilization
             );
-            if let (Some(mem_utilization), Some(mem_used), Some(mem_total), Some(mem_usage)) = (
+            conditional_append!(
+                tooltip,
+                "{}: {}/{} MiB ({}%)\n",
                 config.mem_utilization.get_text(),
-                self.mem_used,
-                self.mem_total,
-                self.compute_mem_usage(),
-            ) {
-                tooltip.push_str(&format!(
-                    "{}: {}/{} MiB ({}%)\n",
-                    mem_utilization,
-                    mem_used.round(),
-                    mem_total,
-                    mem_usage
-                ));
-            }
+                self.mem_used.map(|v| v.round() as u64),
+                self.mem_total.map(|v| v.round() as u64),
+                self.compute_mem_usage()
+            );
             conditional_append!(tooltip, "{}: {} %\n", config.mem_rw.get_text(), self.mem_rw);
             conditional_append!(
                 tooltip,
