@@ -95,11 +95,9 @@ impl From<&str> for TooltipTile {
 }
 
 impl TooltipTile {
-    pub fn get_text(&self, value: Option<String>) -> Option<String> {
+    pub fn get_text(&self) -> Option<&String> {
         if self.enabled {
-            let value = value.unwrap_or_default();
-
-            Some(format!("{}: {}", self.text, value))
+            Some(&self.text)
         } else {
             None
         }
