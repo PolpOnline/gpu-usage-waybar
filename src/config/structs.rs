@@ -43,67 +43,64 @@ pub struct GeneralConfig {
     pub interval: u64,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 #[serde(default)]
 pub struct TooltipConfig {
-    pub gpu_utilization: TooltipTile,
-    pub mem_utilization: TooltipTile,
-    pub mem_rw: TooltipTile,
-    pub decoder_utilization: TooltipTile,
-    pub encoder_utilization: TooltipTile,
-    pub temperature: TooltipTile,
-    pub power: TooltipTile,
-    pub p_state: TooltipTile,
-    pub p_level: TooltipTile,
-    pub fan_speed: TooltipTile,
-    pub tx: TooltipTile,
-    pub rx: TooltipTile,
+    pub gpu_utilization: ConfigGpuUtilization,
+    pub mem_used: ConfigMemUsed,
+    pub mem_rw: ConfigMemRW,
+    pub decoder_utilization: ConfigDecoderUtilization,
+    pub encoder_utilization: ConfigEncoderUtilization,
+    pub temperature: ConfigTemperature,
+    pub power: ConfigPower,
+    pub p_state: ConfigPerformanceState,
+    pub p_level: ConfigPerformanceLevel,
+    pub fan_speed: ConfigFanSpeed,
+    pub tx: ConfigTx,
+    pub rx: ConfigRx,
 }
 
-#[derive(Deserialize, SmartDefault)]
-#[serde(deny_unknown_fields)]
-#[serde(default)]
-pub struct TooltipTile {
-    #[default(true)]
-    pub enabled: bool,
-    pub text: String,
-}
-
-impl Default for TooltipConfig {
-    fn default() -> Self {
-        Self {
-            gpu_utilization: "GPU".into(),
-            mem_utilization: "MEM USED".into(),
-            mem_rw: "MEM R/W".into(),
-            decoder_utilization: "DEC".into(),
-            encoder_utilization: "ENC".into(),
-            temperature: "TEMP".into(),
-            power: "POWER".into(),
-            p_state: "PSTATE".into(),
-            p_level: "PLEVEL".into(),
-            fan_speed: "FAN SPEED".into(),
-            tx: "TX".into(),
-            rx: "RX".into(),
+macro_rules! generate_icon_text_struct {
+    ($name:ident, $default_text:expr) => {
+        #[derive(serde::Deserialize)]
+        #[serde(deny_unknown_fields)]
+        #[serde(default)]
+        pub struct $name {
+            pub enabled: bool,
+            pub text: String,
         }
-    }
+
+        impl Default for $name {
+            fn default() -> Self {
+                Self {
+                    enabled: true,
+                    text: $default_text.to_string(),
+                }
+            }
+        }
+
+        impl $name {
+            pub fn get_text(&self) -> Option<&String> {
+                if self.enabled {
+                    Some(&self.text)
+                } else {
+                    None
+                }
+            }
+        }
+    };
 }
 
-impl From<&str> for TooltipTile {
-    fn from(text: &str) -> Self {
-        TooltipTile {
-            text: text.to_string(),
-            ..Default::default()
-        }
-    }
-}
-
-impl TooltipTile {
-    pub fn get_text(&self) -> Option<&String> {
-        if self.enabled {
-            Some(&self.text)
-        } else {
-            None
-        }
-    }
-}
+generate_icon_text_struct!(ConfigGpuUtilization, "GPU");
+generate_icon_text_struct!(ConfigMemUsed, "MEM USED");
+generate_icon_text_struct!(ConfigMemRW, "MEM R/W");
+generate_icon_text_struct!(ConfigDecoderUtilization, "DEC");
+generate_icon_text_struct!(ConfigEncoderUtilization, "ENC");
+generate_icon_text_struct!(ConfigTemperature, "TEMP");
+generate_icon_text_struct!(ConfigPower, "POWER");
+generate_icon_text_struct!(ConfigPerformanceState, "PSTATE");
+generate_icon_text_struct!(ConfigPerformanceLevel, "PLEVEL");
+generate_icon_text_struct!(ConfigFanSpeed, "FAN SPEED");
+generate_icon_text_struct!(ConfigTx, "TX");
+generate_icon_text_struct!(ConfigRx, "RX");

@@ -105,7 +105,7 @@ impl GpuStatusData {
         conditional_append!(
             tooltip,
             "{}: {}/{} MiB ({}%)\n",
-            config.mem_utilization.get_text(),
+            config.mem_rw.get_text(),
             self.mem_used.map(|v| v.round() as u64),
             self.mem_total.map(|v| v.round() as u64),
             self.compute_mem_usage()
