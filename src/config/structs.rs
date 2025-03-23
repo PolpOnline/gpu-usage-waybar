@@ -57,9 +57,10 @@ pub struct TooltipConfig {
     pub rx: TooltipTile,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, SmartDefault)]
 #[serde(deny_unknown_fields)]
 pub struct TooltipTile {
+    #[default(true)]
     pub enabled: bool,
     pub icon: String,
     pub text: String,
@@ -68,28 +69,28 @@ pub struct TooltipTile {
 impl Default for TooltipConfig {
     fn default() -> Self {
         Self {
-            gpu_utilization: TooltipTile::new("".to_string(), "GPU".to_string()),
-            mem_used: TooltipTile::new("".to_string(), "MEM USED".to_string()),
-            mem_utilization: TooltipTile::new("".to_string(), "MEM R/W".to_string()),
-            decoder_utilization: TooltipTile::new("".to_string(), "DEC".to_string()),
-            encoder_utilization: TooltipTile::new("".to_string(), "ENC".to_string()),
-            temperature: TooltipTile::new("".to_string(), "TEMP".to_string()),
-            power: TooltipTile::new("".to_string(), "POWER".to_string()),
-            performance_state: TooltipTile::new("".to_string(), "PSTATE".to_string()),
-            performance_level: TooltipTile::new("".to_string(), "PLEVEL".to_string()),
-            fan_speed: TooltipTile::new("".to_string(), "FAN SPEED".to_string()),
-            tx: TooltipTile::new("".to_string(), "TX".to_string()),
-            rx: TooltipTile::new("".to_string(), "RX".to_string()),
+            gpu_utilization: TooltipTile::default_enable("".to_string(), "GPU".to_string()),
+            mem_used: TooltipTile::default_enable("".to_string(), "MEM USED".to_string()),
+            mem_utilization: TooltipTile::default_enable("".to_string(), "MEM R/W".to_string()),
+            decoder_utilization: TooltipTile::default_enable("".to_string(), "DEC".to_string()),
+            encoder_utilization: TooltipTile::default_enable("".to_string(), "ENC".to_string()),
+            temperature: TooltipTile::default_enable("".to_string(), "TEMP".to_string()),
+            power: TooltipTile::default_enable("".to_string(), "POWER".to_string()),
+            performance_state: TooltipTile::default_enable("".to_string(), "PSTATE".to_string()),
+            performance_level: TooltipTile::default_enable("".to_string(), "PLEVEL".to_string()),
+            fan_speed: TooltipTile::default_enable("".to_string(), "FAN SPEED".to_string()),
+            tx: TooltipTile::default_enable("".to_string(), "TX".to_string()),
+            rx: TooltipTile::default_enable("".to_string(), "RX".to_string()),
         }
     }
 }
 
 impl TooltipTile {
-    pub fn new(icon: String, text: String) -> Self {
+    pub fn default_enable(icon: String, text: String) -> Self {
         TooltipTile {
-            enabled: true,
             icon,
             text,
+            ..Default::default()
         }
     }
 }
