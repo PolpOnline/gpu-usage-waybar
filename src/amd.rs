@@ -35,7 +35,7 @@ impl GpuStatus for AmdGpuStatus {
 
         Ok(GpuStatusData {
             powered_on: true,
-            gpu_util: gpu_handle.get_busy_percent().ok(),
+            gpu_utilization: gpu_handle.get_busy_percent().ok(),
             mem_used: gpu_handle
                 .get_used_vram()
                 .ok()
@@ -44,7 +44,7 @@ impl GpuStatus for AmdGpuStatus {
                 .get_total_vram()
                 .ok()
                 .map(|v| v as f64 / 1024f64 / 1024f64),
-            temp: temp.map(|v| v.round() as u8),
+            temperature: temp.map(|v| v.round() as u8),
             power: hw_mon.get_power_input().ok(),
             p_level: gpu_handle.get_power_force_performance_level().ok(),
             fan_speed: hw_mon.get_fan_current().ok().map(|v| v as u8),

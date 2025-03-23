@@ -8,7 +8,7 @@ pub struct GpuStatusData {
     /// Whether GPU is powered on at the PCI level.
     pub(crate) powered_on: bool,
     /// GPU utilization in percent.
-    pub(crate) gpu_util: Option<u8>,
+    pub(crate) gpu_utilization: Option<u8>,
     /// Memory used in MiB.
     pub(crate) mem_used: Option<f64>,
     /// Total memory in MiB.
@@ -16,11 +16,11 @@ pub struct GpuStatusData {
     /// Memory data bus utilization in percent.
     pub(crate) mem_util: Option<u8>,
     /// Decoder utilization in percent.
-    pub(crate) dec_util: Option<u8>,
+    pub(crate) decoder_utilization: Option<u8>,
     /// Encoder utilization in percent.
-    pub(crate) enc_util: Option<u8>,
+    pub(crate) encoder_utilization: Option<u8>,
     /// Temperature in degrees Celsius.
-    pub(crate) temp: Option<u8>,
+    pub(crate) temperature: Option<u8>,
     /// Power usage in Watts.
     pub(crate) power: Option<f64>,
     /// (NVIDIA) Performance state.
@@ -57,7 +57,7 @@ impl GpuStatusData {
     pub fn get_text(&self, config: &ConfigFile) -> String {
         let mut text = String::new();
         if self.powered_on {
-            conditional_format!(text, "{}%", self.gpu_util);
+            conditional_format!(text, "{}%", self.gpu_utilization);
 
             if config.get_text_show_memory() {
                 conditional_format!(text, "|{}%", self.compute_mem_usage());
@@ -73,7 +73,7 @@ impl GpuStatusData {
         let mut tooltip = String::new();
 
         if self.powered_on {
-            conditional_format!(tooltip, "GPU: {}%\n", self.gpu_util);
+            conditional_format!(tooltip, "GPU: {}%\n", self.gpu_utilization);
             if let (Some(mem_used), Some(mem_total), Some(mem_usage)) =
                 (self.mem_used, self.mem_total, self.compute_mem_usage())
             {
@@ -85,9 +85,9 @@ impl GpuStatusData {
                 ));
             }
             conditional_format!(tooltip, "MEM R/W: {}%\n", self.mem_util);
-            conditional_format!(tooltip, "DEC: {}%\n", self.dec_util);
-            conditional_format!(tooltip, "ENC: {}%\n", self.enc_util);
-            conditional_format!(tooltip, "TEMP: {}°C\n", self.temp);
+            conditional_format!(tooltip, "DEC: {}%\n", self.decoder_utilization);
+            conditional_format!(tooltip, "ENC: {}%\n", self.encoder_utilization);
+            conditional_format!(tooltip, "TEMP: {}°C\n", self.temperature);
             conditional_format!(tooltip, "POWER: {}W\n", self.power);
             conditional_format!(tooltip, "PSTATE: {}\n", self.p_state);
             conditional_format!(tooltip, "PLEVEL: {}\n", self.p_level);
