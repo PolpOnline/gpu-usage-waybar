@@ -48,56 +48,57 @@ pub struct GeneralConfig {
     pub interval: Option<u64>,
 }
 
-#[derive(Deserialize, Default)]
+#[derive(Deserialize)]
 pub struct TooltipConfig {
-    pub gpu_utilization: Option<GpuUtilization>,
-    pub mem_used: Option<MemUsed>,
-    pub mem_utilization: Option<MemUtilization>,
-    pub decoder_utilization: Option<DecoderUtilization>,
-    pub encoder_utilization: Option<EncoderUtilization>,
-    pub temperature: Option<Temperature>,
-    pub power: Option<Power>,
-    pub performance_state: Option<PerformanceState>,
-    pub performance_level: Option<PerformanceLevel>,
-    pub fan_speed: Option<FanSpeed>,
-    pub tx: Option<Tx>,
-    pub rx: Option<Rx>,
+    pub gpu_utilization: Option<TooltipTile>,
+    pub mem_used: Option<TooltipTile>,
+    pub mem_utilization: Option<TooltipTile>,
+    pub decoder_utilization: Option<TooltipTile>,
+    pub encoder_utilization: Option<TooltipTile>,
+    pub temperature: Option<TooltipTile>,
+    pub power: Option<TooltipTile>,
+    pub performance_state: Option<TooltipTile>,
+    pub performance_level: Option<TooltipTile>,
+    pub fan_speed: Option<TooltipTile>,
+    pub tx: Option<TooltipTile>,
+    pub rx: Option<TooltipTile>,
 }
 
-macro_rules! generate_icon_text_struct {
-    ($name:ident, $default_icon:expr, $default_text:expr) => {
-        #[derive(serde::Deserialize)]
-        #[serde(deny_unknown_fields)]
-        pub struct $name {
-            pub enabled: bool,
-            pub icon: Option<String>,
-            pub text: Option<String>,
-        }
-
-        impl Default for $name {
-            fn default() -> Self {
-                Self {
-                    enabled: true,
-                    icon: Some($default_icon.to_string()),
-                    text: Some($default_text.to_string()),
-                }
-            }
-        }
-    };
+#[derive(Deserialize)]
+pub struct TooltipTile {
+    pub enabled: bool,
+    pub icon: String,
+    pub text: String,
 }
 
-generate_icon_text_struct!(GpuUtilization, "", "GPU");
-generate_icon_text_struct!(MemUsed, "", "MEM USED");
-generate_icon_text_struct!(MemUtilization, "", "MEM R/W");
-generate_icon_text_struct!(DecoderUtilization, "", "DEC");
-generate_icon_text_struct!(EncoderUtilization, "", "ENC");
-generate_icon_text_struct!(Temperature, "", "TEMP");
-generate_icon_text_struct!(Power, "", "POWER");
-generate_icon_text_struct!(PerformanceState, "", "PSTATE");
-generate_icon_text_struct!(PerformanceLevel, "", "PLEVEL");
-generate_icon_text_struct!(FanSpeed, "", "FAN SPEED");
-generate_icon_text_struct!(Tx, "", "TX");
-generate_icon_text_struct!(Rx, "", "RX");
+impl Default for TooltipConfig {
+    fn default() -> Self {
+        Self {
+            gpu_utilization: Some(TooltipTile::new("".to_string(), "GPU".to_string())),
+            mem_used: Some(TooltipTile::new("".to_string(), "MEM USED".to_string())),
+            mem_utilization: Some(TooltipTile::new("".to_string(), "MEM R/W".to_string())),
+            decoder_utilization: Some(TooltipTile::new("".to_string(), "DEC".to_string())),
+            encoder_utilization: Some(TooltipTile::new("".to_string(), "ENC".to_string())),
+            temperature: Some(TooltipTile::new("".to_string(), "TEMP".to_string())),
+            power: Some(TooltipTile::new("".to_string(), "POWER".to_string())),
+            performance_state: Some(TooltipTile::new("".to_string(), "PSTATE".to_string())),
+            performance_level: Some(TooltipTile::new("".to_string(), "PLEVEL".to_string())),
+            fan_speed: Some(TooltipTile::new("".to_string(), "FAN SPEED".to_string())),
+            tx: Some(TooltipTile::new("".to_string(), "TX".to_string())),
+            rx: Some(TooltipTile::new("".to_string(), "RX".to_string())),
+        }
+    }
+}
+
+impl TooltipTile {
+    pub fn new(icon: String, text: String) -> Self {
+        TooltipTile {
+            enabled: true,
+            icon,
+            text,
+        }
+    }
+}
 
 impl ConfigFile {
     pub fn get_interval(&self) -> u64 {
