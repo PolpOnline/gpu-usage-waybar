@@ -1,8 +1,10 @@
-use crate::gpu_status::{GpuStatus, GpuStatusData};
+use std::path::PathBuf;
+
 use amdgpu_sysfs::gpu_handle::GpuHandle;
 use color_eyre::eyre::{eyre, Result};
 use regex::Regex;
-use std::path::PathBuf;
+
+use crate::gpu_status::{GpuStatus, GpuStatusData};
 
 pub struct AmdGpuStatus {
     amd_sys_fs: &'static AmdSysFS,

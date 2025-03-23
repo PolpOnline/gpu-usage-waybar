@@ -2,16 +2,18 @@ pub mod amd;
 pub mod gpu_status;
 pub mod nvidia;
 
-use clap::Parser;
-use std::sync::OnceLock;
-use std::time::Duration;
+use std::{sync::OnceLock, time::Duration};
 
-use crate::amd::{AmdGpuStatus, AmdSysFS};
-use crate::gpu_status::{GpuStatus, GpuStatusData};
-use crate::nvidia::NvidiaGpuStatus;
+use clap::Parser;
 use color_eyre::eyre::{eyre, Result};
 use nvml_wrapper::Nvml;
 use serde::Serialize;
+
+use crate::{
+    amd::{AmdGpuStatus, AmdSysFS},
+    gpu_status::{GpuStatus, GpuStatusData},
+    nvidia::NvidiaGpuStatus,
+};
 
 pub enum Instance {
     Nvml(Box<Nvml>),
@@ -43,7 +45,8 @@ fn get_instance() -> &'static Instance {
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// Add this flag if you don't want to display memory information in the text output.
+    /// Add this flag if you don't want to display memory information in the
+    /// text output.
     #[arg(long, default_value_t = false)]
     text_no_memory: bool,
 
