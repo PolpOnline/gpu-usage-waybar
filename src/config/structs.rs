@@ -1,6 +1,7 @@
-use crate::Args;
 use serde::Deserialize;
 use smart_default::SmartDefault;
+
+use crate::Args;
 
 #[derive(Default, Deserialize)]
 #[serde(deny_unknown_fields)]

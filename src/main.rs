@@ -10,9 +10,9 @@ use color_eyre::eyre::{eyre, Result};
 use nvml_wrapper::Nvml;
 use serde::Serialize;
 
-use crate::config::structs::ConfigFile;
 use crate::{
     amd::{AmdGpuStatus, AmdSysFS},
+    config::structs::ConfigFile,
     gpu_status::{GpuStatus, GpuStatusData},
     nvidia::NvidiaGpuStatus,
 };
