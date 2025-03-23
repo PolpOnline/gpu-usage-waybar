@@ -38,10 +38,12 @@ pub struct GpuStatusData {
 
 /// Formats the value if it is `Some`, appends it to the `fmt` string,
 /// and pushes it to the `target` string.
-fn conditional_append<T: std::fmt::Display>(target: &mut String, fmt: &str, src: Option<T>) {
-    if let Some(value) = src {
-        target.push_str(&format!("{}{}", fmt, value));
-    }
+macro_rules! conditional_append {
+    ($target:ident, $fmt:expr, $src:expr) => {
+        if let Some(value) = $src {
+            $target.push_str(&format!($fmt, value));
+        }
+    };
 }
 
 impl GpuStatusData {
@@ -56,10 +58,10 @@ impl GpuStatusData {
     pub fn get_text(&self, config: &ConfigFile) -> String {
         let mut text = String::new();
         if self.powered_on {
-            conditional_append(&mut text, "{}%", self.gpu_utilization);
+            conditional_append!(text, "{}%", self.gpu_utilization);
 
             if config.text_config.show_memory {
-                conditional_append(&mut text, "|{}%", self.compute_mem_usage());
+                conditional_append!(text, "|{}%", self.compute_mem_usage());
             }
         } else {
             text = "Off".to_string();
@@ -72,7 +74,7 @@ impl GpuStatusData {
         let mut tooltip = String::new();
 
         if self.powered_on {
-            conditional_append(&mut tooltip, "GPU: {}%\n", self.gpu_utilization);
+            conditional_append!(tooltip, "GPU: {}%\n", self.gpu_utilization);
             if let (Some(mem_used), Some(mem_total), Some(mem_usage)) =
                 (self.mem_used, self.mem_total, self.compute_mem_usage())
             {
@@ -83,16 +85,16 @@ impl GpuStatusData {
                     mem_usage
                 ));
             }
-            conditional_append(&mut tooltip, "MEM R/W: {}%\n", self.mem_util);
-            conditional_append(&mut tooltip, "DEC: {}%\n", self.decoder_utilization);
-            conditional_append(&mut tooltip, "ENC: {}%\n", self.encoder_utilization);
-            conditional_append(&mut tooltip, "TEMP: {}°C\n", self.temperature);
-            conditional_append(&mut tooltip, "POWER: {}W\n", self.power);
-            conditional_append(&mut tooltip, "PSTATE: {}\n", self.p_state);
-            conditional_append(&mut tooltip, "PLEVEL: {}\n", self.p_level);
-            conditional_append(&mut tooltip, "FAN SPEED: {}%\n", self.fan_speed);
-            conditional_append(&mut tooltip, "TX: {} MiB/s\n", self.tx);
-            conditional_append(&mut tooltip, "RX: {} MiB/s\n", self.rx);
+            conditional_append!(tooltip, "MEM R/W: {}%\n", self.mem_util);
+            conditional_append!(tooltip, "DEC: {}%\n", self.decoder_utilization);
+            conditional_append!(tooltip, "ENC: {}%\n", self.encoder_utilization);
+            conditional_append!(tooltip, "TEMP: {}°C\n", self.temperature);
+            conditional_append!(tooltip, "POWER: {}W\n", self.power);
+            conditional_append!(tooltip, "PSTATE: {}\n", self.p_state);
+            conditional_append!(tooltip, "PLEVEL: {}\n", self.p_level);
+            conditional_append!(tooltip, "FAN SPEED: {}%\n", self.fan_speed);
+            conditional_append!(tooltip, "TX: {} MiB/s\n", self.tx);
+            conditional_append!(tooltip, "RX: {} MiB/s\n", self.rx);
         } else {
             tooltip = "GPU powered off".to_string();
         }
