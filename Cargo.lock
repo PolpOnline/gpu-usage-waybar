@@ -270,7 +270,6 @@ dependencies = [
  "amdgpu-sysfs",
  "clap",
  "color-eyre",
- "lazy_static",
  "nvml-wrapper",
  "regex",
  "serde",
