@@ -69,27 +69,27 @@ pub struct TooltipTile {
 impl Default for TooltipConfig {
     fn default() -> Self {
         Self {
-            gpu_utilization: TooltipTile::default_enable("".to_string(), "GPU".to_string()),
-            mem_used: TooltipTile::default_enable("".to_string(), "MEM USED".to_string()),
-            mem_utilization: TooltipTile::default_enable("".to_string(), "MEM R/W".to_string()),
-            decoder_utilization: TooltipTile::default_enable("".to_string(), "DEC".to_string()),
-            encoder_utilization: TooltipTile::default_enable("".to_string(), "ENC".to_string()),
-            temperature: TooltipTile::default_enable("".to_string(), "TEMP".to_string()),
-            power: TooltipTile::default_enable("".to_string(), "POWER".to_string()),
-            performance_state: TooltipTile::default_enable("".to_string(), "PSTATE".to_string()),
-            performance_level: TooltipTile::default_enable("".to_string(), "PLEVEL".to_string()),
-            fan_speed: TooltipTile::default_enable("".to_string(), "FAN SPEED".to_string()),
-            tx: TooltipTile::default_enable("".to_string(), "TX".to_string()),
-            rx: TooltipTile::default_enable("".to_string(), "RX".to_string()),
+            gpu_utilization: ("", "GPU").into(),
+            mem_used: ("", "MEM USED").into(),
+            mem_utilization: ("", "MEM R/W").into(),
+            decoder_utilization: ("", "DEC").into(),
+            encoder_utilization: ("", "ENC").into(),
+            temperature: ("", "TEMP").into(),
+            power: ("", "POWER").into(),
+            performance_state: ("", "PSTATE").into(),
+            performance_level: ("", "PLEVEL").into(),
+            fan_speed: ("", "FAN SPEED").into(),
+            tx: ("", "TX").into(),
+            rx: ("", "RX").into(),
         }
     }
 }
 
-impl TooltipTile {
-    pub fn default_enable(icon: String, text: String) -> Self {
+impl From<(&str, &str)> for TooltipTile {
+    fn from((icon, text): (&str, &str)) -> Self {
         TooltipTile {
-            icon,
-            text,
+            icon: icon.to_string(),
+            text: text.to_string(),
             ..Default::default()
         }
     }
