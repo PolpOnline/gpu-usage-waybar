@@ -71,7 +71,7 @@ fn main() -> Result<()> {
         Instance::Amd(amd_sys_fs) => Box::new(AmdGpuStatus::new(amd_sys_fs)?),
     };
 
-    let update_interval = Duration::from_millis(config.get_interval());
+    let update_interval = Duration::from_millis(config.general.interval);
 
     loop {
         let gpu_status_data = gpu_status_handler.compute()?;

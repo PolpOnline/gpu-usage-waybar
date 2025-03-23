@@ -60,7 +60,7 @@ impl GpuStatusData {
         if self.powered_on {
             conditional_format!(text, "{}%", self.gpu_utilization);
 
-            if config.get_text_show_memory() {
+            if config.text_config.show_memory {
                 conditional_format!(text, "|{}%", self.compute_mem_usage());
             }
         } else {
