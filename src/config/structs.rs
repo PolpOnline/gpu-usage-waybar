@@ -29,6 +29,7 @@ impl ConfigFile {
 
 #[derive(Deserialize, SmartDefault)]
 #[serde(deny_unknown_fields)]
+#[serde(default)]
 pub struct TextConfig {
     #[default(true)]
     pub show_memory: bool,
@@ -36,6 +37,7 @@ pub struct TextConfig {
 
 #[derive(Deserialize, SmartDefault)]
 #[serde(deny_unknown_fields)]
+#[serde(default)]
 pub struct GeneralConfig {
     #[default(1000)]
     pub interval: u64,
@@ -43,6 +45,7 @@ pub struct GeneralConfig {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(default)]
 pub struct TooltipConfig {
     pub gpu_utilization: TooltipTile,
     pub mem_utilization: TooltipTile,
@@ -60,6 +63,7 @@ pub struct TooltipConfig {
 
 #[derive(Deserialize, SmartDefault)]
 #[serde(deny_unknown_fields)]
+#[serde(default)]
 pub struct TooltipTile {
     #[default(true)]
     pub enabled: bool,
