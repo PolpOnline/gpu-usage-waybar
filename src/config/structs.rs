@@ -16,11 +16,11 @@ pub struct ConfigFile {
 impl ConfigFile {
     pub fn merge_args_into_config(&mut self, args: &Args) -> Result<()> {
         if args.text_no_memory {
-            self.text = TextConfig { show_memory: false };
+            self.text.show_memory = false;
         }
 
         if let Some(interval) = args.interval {
-            self.general = GeneralConfig { interval };
+            self.general.interval = interval;
         }
 
         Ok(())
