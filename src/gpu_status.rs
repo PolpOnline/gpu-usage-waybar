@@ -79,7 +79,7 @@ impl GpuStatusData {
                 (self.mem_used, self.mem_total, self.compute_mem_usage())
             {
                 tooltip.push_str(&format!(
-                    concat!("MEM USED: {}/{} MiB ({}%)", "\n"),
+                    "MEM USED: {}/{} MiB ({}%)\n",
                     mem_used.round(),
                     mem_total,
                     mem_usage
