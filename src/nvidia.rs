@@ -64,7 +64,7 @@ impl GpuStatus for NvidiaGpuStatus<'_> {
                     .clone()
                     .map(|m| m.used as f64 / 1024f64 / 1024f64), // convert to MiB from B
                 mem_total: memory_info_in_bytes.map(|m| m.total as f64 / 1024f64 / 1024f64),
-                mem_util: utilization_rates.map(|u| u.memory as u8),
+                mem_rw: utilization_rates.map(|u| u.memory as u8),
                 decoder_utilization: device
                     .decoder_utilization()
                     .ok()

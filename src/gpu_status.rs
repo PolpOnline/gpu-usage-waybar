@@ -15,7 +15,7 @@ pub struct GpuStatusData {
     /// Total memory in MiB.
     pub(crate) mem_total: Option<f64>,
     /// Memory data bus utilization in percent.
-    pub(crate) mem_util: Option<u8>,
+    pub(crate) mem_rw: Option<u8>,
     /// Decoder utilization in percent.
     pub(crate) decoder_utilization: Option<u8>,
     /// Encoder utilization in percent.
@@ -67,7 +67,7 @@ impl GpuStatusData {
         if self.powered_on {
             conditional_append!(text, "{}%", self.gpu_utilization);
 
-            if config.text_config.show_memory {
+            if config.text.show_memory {
                 conditional_append!(text, "|{}%", self.compute_mem_usage());
             }
         } else {
@@ -77,8 +77,8 @@ impl GpuStatusData {
         text
     }
 
-    pub fn get_tooltip(&self, config: &ConfigFile) -> String {
-        let tooltip_config = &config.tooltip_config;
+    pub fn get_tooltip(&self, config_file: &ConfigFile) -> String {
+        let config = &config_file.tooltip;
 
         let mut tooltip = String::new();
 
@@ -86,79 +86,53 @@ impl GpuStatusData {
             conditional_append!(
                 tooltip,
                 "{}: {}%\n",
-                tooltip_config.gpu_utilization.get_text(),
+                config.gpu_utilization.get_text(),
                 self.gpu_utilization
             );
-            if let (Some(mem_used), Some(mem_total), Some(mem_usage)) =
-                (self.mem_used, self.mem_total, self.compute_mem_usage())
-            {
+            if let (Some(mem_utilization), Some(mem_used), Some(mem_total), Some(mem_usage)) = (
+                config.mem_utilization.get_text(),
+                self.mem_used,
+                self.mem_total,
+                self.compute_mem_usage(),
+            ) {
                 tooltip.push_str(&format!(
-                    "MEM USED: {}/{} MiB ({}%)\n",
+                    "{}: {}/{} MiB ({}%)\n",
+                    mem_utilization,
                     mem_used.round(),
                     mem_total,
                     mem_usage
                 ));
             }
+            conditional_append!(tooltip, "{}: {} %\n", config.mem_rw.get_text(), self.mem_rw);
             conditional_append!(
                 tooltip,
                 "{}: {} %\n",
-                tooltip_config.mem_utilization.get_text(),
-                self.mem_util
-            );
-            conditional_append!(
-                tooltip,
-                "{}: {} %\n",
-                tooltip_config.decoder_utilization.get_text(),
+                config.decoder_utilization.get_text(),
                 self.decoder_utilization
             );
             conditional_append!(
                 tooltip,
                 "{}: {} %\n",
-                tooltip_config.encoder_utilization.get_text(),
+                config.encoder_utilization.get_text(),
                 self.encoder_utilization
             );
             conditional_append!(
                 tooltip,
                 "{}: {} °C\n",
-                tooltip_config.temperature.get_text(),
+                config.temperature.get_text(),
                 self.temperature
             );
-            conditional_append!(
-                tooltip,
-                "{}: {} W\n",
-                tooltip_config.power.get_text(),
-                self.power
-            );
-            conditional_append!(
-                tooltip,
-                "{}: {}\n",
-                tooltip_config.performance_state.get_text(),
-                self.p_state
-            );
-            conditional_append!(
-                tooltip,
-                "{}: {}\n",
-                tooltip_config.performance_level.get_text(),
-                self.p_level
-            );
+            conditional_append!(tooltip, "{}: {} W\n", config.power.get_text(), self.power);
+            conditional_append!(tooltip, "{}: {}\n", config.p_state.get_text(), self.p_state);
+            conditional_append!(tooltip, "{}: {}\n", config.p_level.get_text(), self.p_level);
             conditional_append!(
                 tooltip,
                 "{}: {} %\n",
-                tooltip_config.fan_speed.get_text(),
+                config.fan_speed.get_text(),
                 self.fan_speed
             );
-            conditional_append!(
-                tooltip,
-                "{}: {} MiB/s\n",
-                tooltip_config.tx.get_text(),
-                self.tx
-            );
-            conditional_append!(
-                tooltip,
-                "{}: {} MiB/s\n",
-                tooltip_config.rx.get_text(),
-                self.rx
-            );
+            conditional_append!(tooltip, "{}: {} MiB/s\n", config.tx.get_text(), self.tx);
+            conditional_append!(tooltip, "{}: {} MiB/s\n", config.rx.get_text(), self.rx);
         } else {
             tooltip = "GPU powered off".to_string();
         }
