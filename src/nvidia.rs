@@ -1,8 +1,12 @@
-use crate::gpu_status::{GpuStatus, GpuStatusData, PState};
-use color_eyre::eyre::Result;
-use nvml_wrapper::enum_wrappers::device::{PcieUtilCounter, PerformanceState, TemperatureSensor};
-use nvml_wrapper::{Device, Nvml};
 use std::fs;
+
+use color_eyre::eyre::Result;
+use nvml_wrapper::{
+    enum_wrappers::device::{PcieUtilCounter, PerformanceState, TemperatureSensor},
+    Device, Nvml,
+};
+
+use crate::gpu_status::{GpuStatus, GpuStatusData, PState};
 
 pub struct NvidiaGpuStatus<'a> {
     device: Device<'a>,
@@ -27,7 +31,8 @@ fn is_powered_on(bus_id: &str) -> Result<bool> {
     let status = match fs::read_to_string(path) {
         Ok(s) => s,
         Err(_) => {
-            // Sometimes the runtime status file doesn't exist or doesn't contain the expected value
+            // Sometimes the runtime status file doesn't exist or doesn't contain the
+            // expected value
             return Ok(true);
         }
     };
@@ -72,7 +77,8 @@ impl GpuStatus for NvidiaGpuStatus<'_> {
                     .temperature(TemperatureSensor::Gpu)
                     .ok()
                     .map(|t| t as u8),
-                power: device.power_usage().ok().map(|p| p as f64 / 1000f64), // convert to W from mW
+                power: device.power_usage().ok().map(|p| p as f64 / 1000f64), /* convert to W
+                                                                               * from mW */
                 p_state: device.performance_state().ok().map(|p| p.into()),
                 fan_speed: device.fan_speed(0u32).ok().map(|f| f as u8),
                 tx: device
