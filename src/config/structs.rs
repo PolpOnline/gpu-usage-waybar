@@ -63,35 +63,45 @@ pub struct TooltipConfig {
 pub struct TooltipTile {
     #[default(true)]
     pub enabled: bool,
-    pub icon: String,
     pub text: String,
 }
 
 impl Default for TooltipConfig {
     fn default() -> Self {
         Self {
-            gpu_utilization: ("", "GPU").into(),
-            mem_used: ("", "MEM USED").into(),
-            mem_utilization: ("", "MEM R/W").into(),
-            decoder_utilization: ("", "DEC").into(),
-            encoder_utilization: ("", "ENC").into(),
-            temperature: ("", "TEMP").into(),
-            power: ("", "POWER").into(),
-            performance_state: ("", "PSTATE").into(),
-            performance_level: ("", "PLEVEL").into(),
-            fan_speed: ("", "FAN SPEED").into(),
-            tx: ("", "TX").into(),
-            rx: ("", "RX").into(),
+            gpu_utilization: "GPU".into(),
+            mem_used: "MEM USED".into(),
+            mem_utilization: "MEM R/W".into(),
+            decoder_utilization: "DEC".into(),
+            encoder_utilization: "ENC".into(),
+            temperature: "TEMP".into(),
+            power: "POWER".into(),
+            performance_state: "PSTATE".into(),
+            performance_level: "PLEVEL".into(),
+            fan_speed: "FAN SPEED".into(),
+            tx: "TX".into(),
+            rx: "RX".into(),
         }
     }
 }
 
-impl From<(&str, &str)> for TooltipTile {
-    fn from((icon, text): (&str, &str)) -> Self {
+impl From<&str> for TooltipTile {
+    fn from(text: &str) -> Self {
         TooltipTile {
-            icon: icon.to_string(),
             text: text.to_string(),
             ..Default::default()
+        }
+    }
+}
+
+impl TooltipTile {
+    pub fn get_text(&self, value: Option<String>) -> Option<String> {
+        if self.enabled {
+            let value = value.unwrap_or_default();
+
+            Some(format!("{}: {}", self.text, value))
+        } else {
+            None
         }
     }
 }
