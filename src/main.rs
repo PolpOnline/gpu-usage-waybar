@@ -3,7 +3,11 @@ pub mod config;
 pub mod gpu_status;
 pub mod nvidia;
 
-use std::{sync::OnceLock, time::Duration};
+use std::{
+    io::{stdout, Write},
+    sync::OnceLock,
+    time::Duration,
+};
 
 use clap::Parser;
 use color_eyre::eyre::{eyre, Result};
@@ -73,12 +77,14 @@ fn main() -> Result<()> {
 
     let update_interval = Duration::from_millis(config.general.interval);
 
+    let mut stdout_lock = stdout().lock();
+
     loop {
         let gpu_status_data = gpu_status_handler.compute()?;
 
         let output = format_output(gpu_status_data, &config);
 
-        println!("{}", serde_json::to_string(&output)?);
+        writeln!(&mut stdout_lock, "{}", serde_json::to_string(&output)?)?;
 
         std::thread::sleep(update_interval);
     }
