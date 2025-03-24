@@ -1,4 +1,5 @@
 pub mod amd;
+pub mod config;
 pub mod gpu_status;
 pub mod nvidia;
 
@@ -15,6 +16,7 @@ use serde::Serialize;
 
 use crate::{
     amd::{AmdGpuStatus, AmdSysFS},
+    config::structs::ConfigFile,
     gpu_status::{GpuStatus, GpuStatusData},
     nvidia::NvidiaGpuStatus,
 };
@@ -48,35 +50,39 @@ fn get_instance() -> &'static Instance {
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
-struct Args {
+pub struct Args {
     /// Add this flag if you don't want to display memory information in the
     /// text output.
     #[arg(long, default_value_t = false)]
     text_no_memory: bool,
 
     /// Polling interval in milliseconds
-    #[arg(long, default_value_t = 1000)]
-    interval: u64,
+    #[arg(long)]
+    interval: Option<u64>,
 }
 
 fn main() -> Result<()> {
     color_eyre::install()?;
 
+    let mut config = config::get_or_init_config()?;
+
     let args = Args::parse();
+
+    config.merge_args_into_config(&args)?;
 
     let gpu_status_handler: Box<dyn GpuStatus> = match get_instance() {
         Instance::Nvml(nvml) => Box::new(NvidiaGpuStatus::new(nvml)?),
         Instance::Amd(amd_sys_fs) => Box::new(AmdGpuStatus::new(amd_sys_fs)?),
     };
 
-    let update_interval = Duration::from_millis(args.interval);
+    let update_interval = Duration::from_millis(config.general.interval);
 
     let mut stdout_lock = stdout().lock();
 
     loop {
         let gpu_status_data = gpu_status_handler.compute()?;
 
-        let output = format_output(gpu_status_data, !args.text_no_memory);
+        let output = format_output(gpu_status_data, &config);
 
         writeln!(&mut stdout_lock, "{}", serde_json::to_string(&output)?)?;
 
@@ -84,10 +90,10 @@ fn main() -> Result<()> {
     }
 }
 
-fn format_output(gpu_status: GpuStatusData, display_mem_info: bool) -> OutputFormat {
+fn format_output(gpu_status: GpuStatusData, config: &ConfigFile) -> OutputFormat {
     OutputFormat {
-        text: gpu_status.get_text(display_mem_info),
-        tooltip: gpu_status.get_tooltip(),
+        text: gpu_status.get_text(config),
+        tooltip: gpu_status.get_tooltip(config),
     }
 }
 

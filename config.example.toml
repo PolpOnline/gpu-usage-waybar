@@ -1,0 +1,17 @@
+## Config file for the `gpu-usage-waybar` tool
+# [general]
+# Interval to update the GPU usage in milliseconds
+# interval = 1000
+#
+## TEXT CONFIGURATION
+# [text]
+# Whether to show the GPU usage as a percentage on the bar or not
+# show_memory = true
+#
+# TOOLTIP CONFIGURATION
+# [tooltip.gpu_utilization]
+# enabled = true
+#
+# [tooltip.decoder_utilization]
+# enabled = true
+# text = "DEC"

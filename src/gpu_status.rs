@@ -2,24 +2,26 @@ use amdgpu_sysfs::gpu_handle::PerformanceLevel;
 use color_eyre::eyre::Result;
 use strum::Display;
 
+use crate::config::structs::ConfigFile;
+
 #[derive(Default)]
 pub struct GpuStatusData {
     /// Whether GPU is powered on at the PCI level.
     pub(crate) powered_on: bool,
     /// GPU utilization in percent.
-    pub(crate) gpu_util: Option<u8>,
+    pub(crate) gpu_utilization: Option<u8>,
     /// Memory used in MiB.
     pub(crate) mem_used: Option<f64>,
     /// Total memory in MiB.
     pub(crate) mem_total: Option<f64>,
     /// Memory data bus utilization in percent.
-    pub(crate) mem_util: Option<u8>,
+    pub(crate) mem_rw: Option<u8>,
     /// Decoder utilization in percent.
-    pub(crate) dec_util: Option<u8>,
+    pub(crate) decoder_utilization: Option<u8>,
     /// Encoder utilization in percent.
-    pub(crate) enc_util: Option<u8>,
+    pub(crate) encoder_utilization: Option<u8>,
     /// Temperature in degrees Celsius.
-    pub(crate) temp: Option<u8>,
+    pub(crate) temperature: Option<u8>,
     /// Power usage in Watts.
     pub(crate) power: Option<f64>,
     /// (NVIDIA) Performance state.
@@ -36,10 +38,26 @@ pub struct GpuStatusData {
 
 /// Formats the value if it is `Some`, appends it to the `fmt` string,
 /// and pushes it to the `target` string.
-macro_rules! conditional_format {
-    ($target:ident, $fmt:expr, $src:expr) => {
-        if let Some(value) = $src {
+macro_rules! conditional_append {
+    ($target:ident, $fmt:expr, $value:expr) => {
+        if let Some(value) = $value {
             $target.push_str(&format!($fmt, value));
+        }
+    };
+
+    // Same but with two values
+    ($target:ident, $fmt:expr, $src1:expr, $src2:expr) => {
+        if let (Some(value1), Some(value2)) = ($src1, $src2) {
+            $target.push_str(&format!($fmt, value1, value2));
+        }
+    };
+
+    // Same but with four values
+    ($target:ident, $fmt:expr, $src1:expr, $src2:expr, $src3:expr, $src4:expr) => {
+        if let (Some(value1), Some(value2), Some(value3), Some(value4)) =
+            ($src1, $src2, $src3, $src4)
+        {
+            $target.push_str(&format!($fmt, value1, value2, value3, value4));
         }
     };
 }
@@ -53,49 +71,75 @@ impl GpuStatusData {
         }
     }
 
-    pub fn get_text(&self, display_mem_info: bool) -> String {
-        let mut text = String::new();
-        if self.powered_on {
-            conditional_format!(text, "{}%", self.gpu_util);
+    pub fn get_text(&self, config: &ConfigFile) -> String {
+        if !self.powered_on {
+            return "Off".to_string();
+        }
 
-            if display_mem_info {
-                conditional_format!(text, "|{}%", self.compute_mem_usage());
-            }
-        } else {
-            text = "Off".to_string();
+        let mut text = String::new();
+
+        conditional_append!(text, "{}%", self.gpu_utilization);
+
+        if config.text.show_memory {
+            conditional_append!(text, "|{}%", self.compute_mem_usage());
         }
 
         text
     }
 
-    pub fn get_tooltip(&self) -> String {
+    pub fn get_tooltip(&self, config_file: &ConfigFile) -> String {
+        if !self.powered_on {
+            return "GPU powered off".to_string();
+        }
+
+        let config = &config_file.tooltip;
+
         let mut tooltip = String::new();
 
-        if self.powered_on {
-            conditional_format!(tooltip, "GPU: {}%\n", self.gpu_util);
-            if let (Some(mem_used), Some(mem_total), Some(mem_usage)) =
-                (self.mem_used, self.mem_total, self.compute_mem_usage())
-            {
-                tooltip.push_str(&format!(
-                    concat!("MEM USED: {}/{} MiB ({}%)", "\n"),
-                    mem_used.round(),
-                    mem_total,
-                    mem_usage
-                ));
-            }
-            conditional_format!(tooltip, "MEM R/W: {}%\n", self.mem_util);
-            conditional_format!(tooltip, "DEC: {}%\n", self.dec_util);
-            conditional_format!(tooltip, "ENC: {}%\n", self.enc_util);
-            conditional_format!(tooltip, "TEMP: {}°C\n", self.temp);
-            conditional_format!(tooltip, "POWER: {}W\n", self.power);
-            conditional_format!(tooltip, "PSTATE: {}\n", self.p_state);
-            conditional_format!(tooltip, "PLEVEL: {}\n", self.p_level);
-            conditional_format!(tooltip, "FAN SPEED: {}%\n", self.fan_speed);
-            conditional_format!(tooltip, "TX: {} MiB/s\n", self.tx);
-            conditional_format!(tooltip, "RX: {} MiB/s\n", self.rx);
-        } else {
-            tooltip = "GPU powered off".to_string();
-        }
+        conditional_append!(
+            tooltip,
+            "{}: {}%\n",
+            config.gpu_utilization.get_text(),
+            self.gpu_utilization
+        );
+        conditional_append!(
+            tooltip,
+            "{}: {}/{} MiB ({}%)\n",
+            config.mem_used.get_text(),
+            self.mem_used.map(|v| v.round() as u64),
+            self.mem_total.map(|v| v.round() as u64),
+            self.compute_mem_usage()
+        );
+        conditional_append!(tooltip, "{}: {}%\n", config.mem_rw.get_text(), self.mem_rw);
+        conditional_append!(
+            tooltip,
+            "{}: {}%\n",
+            config.decoder_utilization.get_text(),
+            self.decoder_utilization
+        );
+        conditional_append!(
+            tooltip,
+            "{}: {}%\n",
+            config.encoder_utilization.get_text(),
+            self.encoder_utilization
+        );
+        conditional_append!(
+            tooltip,
+            "{}: {}°C\n",
+            config.temperature.get_text(),
+            self.temperature
+        );
+        conditional_append!(tooltip, "{}: {}W\n", config.power.get_text(), self.power);
+        conditional_append!(tooltip, "{}: {}\n", config.p_state.get_text(), self.p_state);
+        conditional_append!(tooltip, "{}: {}\n", config.p_level.get_text(), self.p_level);
+        conditional_append!(
+            tooltip,
+            "{}: {}%\n",
+            config.fan_speed.get_text(),
+            self.fan_speed
+        );
+        conditional_append!(tooltip, "{}: {} MiB/s\n", config.tx.get_text(), self.tx);
+        conditional_append!(tooltip, "{}: {} MiB/s\n", config.rx.get_text(), self.rx);
 
         tooltip.trim().to_string()
     }

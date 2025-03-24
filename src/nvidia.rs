@@ -59,21 +59,21 @@ impl GpuStatus for NvidiaGpuStatus<'_> {
 
             GpuStatusData {
                 powered_on: true,
-                gpu_util: utilization_rates.clone().map(|u| u.gpu as u8),
+                gpu_utilization: utilization_rates.clone().map(|u| u.gpu as u8),
                 mem_used: memory_info_in_bytes
                     .clone()
                     .map(|m| m.used as f64 / 1024f64 / 1024f64), // convert to MiB from B
                 mem_total: memory_info_in_bytes.map(|m| m.total as f64 / 1024f64 / 1024f64),
-                mem_util: utilization_rates.map(|u| u.memory as u8),
-                dec_util: device
+                mem_rw: utilization_rates.map(|u| u.memory as u8),
+                decoder_utilization: device
                     .decoder_utilization()
                     .ok()
                     .map(|u| u.utilization as u8),
-                enc_util: device
+                encoder_utilization: device
                     .encoder_utilization()
                     .ok()
                     .map(|u| u.utilization as u8),
-                temp: device
+                temperature: device
                     .temperature(TemperatureSensor::Gpu)
                     .ok()
                     .map(|t| t as u8),
