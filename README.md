@@ -45,3 +45,8 @@ Add the custom module to the config
   "on-click": "kitty nvtop",
 }
 ```
+
+The crate also has a configuration file (located at `$XDG_CONFIG_HOME/gpu-usage-waybar/config.toml`)
+which can be used to set various options about the output.
+
+Bear in mind that args passed to the command line will override the configuration file
