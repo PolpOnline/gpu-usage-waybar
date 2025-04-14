@@ -31,3 +31,8 @@ lto = true
 # The profile that 'dist' will build with
 [profile.dist]
 inherits = "release"
+
+[profile.profiling]
+inherits = "release"
+lto = false
+debug = true
