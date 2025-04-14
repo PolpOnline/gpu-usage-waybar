@@ -84,7 +84,7 @@ fn main() -> Result<()> {
 
         let output = format_output(gpu_status_data, &config);
 
-        writeln!(&mut stdout_lock, "{}", serde_json::to_string(&output)?)?;
+        writeln!(&mut stdout_lock, "{}", sonic_rs::to_string(&output)?)?;
 
         std::thread::sleep(update_interval);
     }
