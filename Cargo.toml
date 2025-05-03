@@ -2,7 +2,7 @@
 name = "gpu-usage-waybar"
 authors = ["PolpOnline"]
 version = "0.1.22"
-edition = "2021"
+edition = "2024"
 description = "A tool to display gpu usage in Waybar"
 license = "MIT"
 readme = "README.md"
