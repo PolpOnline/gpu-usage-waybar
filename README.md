@@ -42,7 +42,7 @@ Add the custom module to the config
   "exec": "gpu-usage-waybar",
   "return-type": "json",
   "format-icons": "󰾲",
-  "on-click": "kitty nvtop",
+  "on-click": "ghostty -e nvtop",
 }
 ```
 
