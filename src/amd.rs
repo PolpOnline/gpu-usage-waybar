@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use amdgpu_sysfs::gpu_handle::GpuHandle;
-use color_eyre::eyre::{eyre, Result};
+use color_eyre::eyre::{Result, eyre};
 use regex::Regex;
 
 use crate::gpu_status::{GpuStatus, GpuStatusData};

@@ -82,11 +82,7 @@ macro_rules! generate_icon_text_struct {
 
         impl $name {
             pub fn get_text(&self) -> Option<&String> {
-                if self.enabled {
-                    Some(&self.text)
-                } else {
-                    None
-                }
+                if self.enabled { Some(&self.text) } else { None }
             }
         }
     };

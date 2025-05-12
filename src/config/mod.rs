@@ -2,8 +2,8 @@ pub mod structs;
 
 use std::{path::PathBuf, sync::OnceLock};
 
-use color_eyre::{eyre::eyre, Result};
-use etcetera::{base_strategy::Xdg, BaseStrategy};
+use color_eyre::{Result, eyre::eyre};
+use etcetera::{BaseStrategy, base_strategy::Xdg};
 
 use crate::config::structs::ConfigFile;
 

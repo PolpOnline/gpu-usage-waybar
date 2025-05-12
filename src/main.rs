@@ -4,13 +4,13 @@ pub mod gpu_status;
 pub mod nvidia;
 
 use std::{
-    io::{stdout, Write},
+    io::{Write, stdout},
     sync::OnceLock,
     time::Duration,
 };
 
 use clap::Parser;
-use color_eyre::eyre::{eyre, Result};
+use color_eyre::eyre::{Result, eyre};
 use nvml_wrapper::Nvml;
 use serde::Serialize;
 

@@ -2,8 +2,8 @@ use std::fs;
 
 use color_eyre::eyre::Result;
 use nvml_wrapper::{
-    enum_wrappers::device::{PcieUtilCounter, PerformanceState, TemperatureSensor},
     Device, Nvml,
+    enum_wrappers::device::{PcieUtilCounter, PerformanceState, TemperatureSensor},
 };
 
 use crate::gpu_status::{GpuStatus, GpuStatusData, PState};
