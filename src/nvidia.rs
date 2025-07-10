@@ -27,7 +27,7 @@ impl NvidiaGpuStatus<'_> {
 }
 
 fn is_powered_on(bus_id: &str) -> Result<bool> {
-    let path = format!("/sys/bus/pci/devices/{}/power/runtime_status", bus_id);
+    let path = format!("/sys/bus/pci/devices/{bus_id}/power/runtime_status");
     let status = match fs::read_to_string(path) {
         Ok(s) => s,
         Err(_) => {
