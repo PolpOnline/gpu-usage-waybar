@@ -12,7 +12,7 @@ repository = "https://github.com/PolpOnline/gpu-usage-waybar"
 amdgpu-sysfs = "0.19.0"
 clap = { version = "4.5.20", features = ["cargo", "derive"] }
 color-eyre = "0.6.3"
-etcetera = "0.10.0"
+etcetera = "0.11.0"
 nvml-wrapper = "0.11.0"
 regex = "1.11.1"
 serde = { version = "1.0.214", features = ["derive"] }
