@@ -47,7 +47,7 @@ Add the custom module to the config, use
 ```
 
 > [!NOTE]  
-> The format field should be "{text} {icon}" instead of "{} {icon}" for nightly users.
+> The format field should be `"{text} {icon}"` instead of `"{} {icon}"` for nightly users.
 
 The crate also has a configuration file (located at `$XDG_CONFIG_HOME/gpu-usage-waybar/config.toml`)
 which can be used to set various options about the output.
