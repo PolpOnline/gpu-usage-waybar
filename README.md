@@ -38,7 +38,7 @@ Add the custom module to the config
 
 ```json
 "custom/gpu-usage": {
-  "format": "{} {icon}",
+  "format": "{} {icon}", /* "{text} {icon}" for nightly users */
   "exec": "gpu-usage-waybar",
   "return-type": "json",
   "format-icons": "󰾲",
