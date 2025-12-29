@@ -34,17 +34,20 @@ Add a module to the top of the config specifying where the module should be posi
 "modules-left": ["...", "custom/gpu-usage", "..."]
 ```
 
-Add the custom module to the config
+Add the custom module to the config, use
 
 ```json
 "custom/gpu-usage": {
-  "format": "{} {icon}", /* "{text} {icon}" for nightly users */
+  "format": "{} {icon}"
   "exec": "gpu-usage-waybar",
   "return-type": "json",
   "format-icons": "󰾲",
   "on-click": "ghostty -e nvtop",
 }
 ```
+
+> [!NOTE]  
+> The format field should be "{text} {icon}" instead of "{} {icon}" for nightly users.
 
 The crate also has a configuration file (located at `$XDG_CONFIG_HOME/gpu-usage-waybar/config.toml`)
 which can be used to set various options about the output.
