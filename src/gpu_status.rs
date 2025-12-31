@@ -6,6 +6,7 @@ use crate::config::structs::ConfigFile;
 
 #[derive(Default)]
 pub struct GpuStatusData {
+    pub has_running_processes: bool,
     /// Whether GPU is powered on at the PCI level.
     pub(crate) powered_on: bool,
     /// GPU utilization in percent.
