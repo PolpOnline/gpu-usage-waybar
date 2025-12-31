@@ -77,6 +77,10 @@ impl GpuStatusData {
             return "Off".to_string();
         }
 
+        if !self.has_running_processes {
+            return "Idle".to_string();
+        }
+
         let mut text = String::new();
 
         conditional_append!(text, "{}%", self.gpu_utilization);
