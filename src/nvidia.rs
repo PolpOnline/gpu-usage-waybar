@@ -130,9 +130,23 @@ impl NvidiaGpuStatus<'_> {
 
 impl GpuStatus for NvidiaGpuStatus<'_> {
     fn compute(&self) -> Result<GpuStatusData> {
-        // TODO: add comments to this
-        // NVML queries inadvertently wake the NVIDIA card
-        // Use sysfs to check power status first
+        // GPU status computation is split into two stages to avoid inadvertently
+        // waking up the NVIDIA GPU during idle periods:
+        //
+        // 1. Presence check (doesn't wake GPU):
+        //    - Uses sysfs to check PCI-level power status (`is_powered_on`).
+        //    - Scans /proc via procfs to see if any process is currently using
+        //      the GPU device node
+        //    This stage does not invoke NVML and therefore does not wake the GPU.
+        //
+        // 2. NVML collection (wake GPU):
+        //    - Only executed if the GPU is powered on and has running processes.
+        //    - Collects utilization rates, memory info, temperature, PCIe throughput,
+        //      encoder/decoder usage, fan speed, power draw, etc.
+        //    This stage gives full metrics but is gated to minimize unnecessary GPU wake-ups.
+        //
+        // By structuring the polling this way, we maintain power-awareness while
+        // still collecting full GPU metrics when the device is actively in use.
         let gpu_status = match self.detect_gpu_presence()? {
             GpuPowerState::Off => GpuStatusData {
                 powered_on: false,
