@@ -35,6 +35,7 @@ impl GpuStatus for AmdGpuStatus {
 
         Ok(GpuStatusData {
             powered_on: true,
+            has_running_processes: true, // TODO: temporarily set to true until AMD GPU process detection is implemented
             gpu_utilization: gpu_handle.get_busy_percent().ok(),
             mem_used: gpu_handle
                 .get_used_vram()
