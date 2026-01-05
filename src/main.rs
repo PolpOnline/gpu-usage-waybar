@@ -60,7 +60,7 @@ pub struct Args {
     #[arg(long)]
     text_format: Option<String>,
 
-    /// The format you want to display for `text`.
+    /// The format you want to display for `tooltip`.
     /// For example,
     /// "GPU: {gpu_utilization}%\n
     /// MEM USED: {mem_used}/{mem_total} MiB ({mem_utilization}%)\n
