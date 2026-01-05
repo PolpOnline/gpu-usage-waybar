@@ -48,6 +48,13 @@ fn is_powered_on(bus_id: &str) -> Result<bool> {
     Ok(powered_on)
 }
 
+/// Returns `true` if there is any process currently using GPU 0.
+///
+/// This function checks whether `/dev/nvidia0` is opened by any process
+/// other than the current one by scanning `/proc/*/fd`.
+///
+/// Reference:
+/// https://wiki.archlinux.org/title/PRIME#NVIDIA
 fn has_running_processes() -> bool {
     let procs = all_processes().expect("Can't read /proc");
 
