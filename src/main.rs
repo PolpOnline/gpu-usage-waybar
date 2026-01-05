@@ -51,14 +51,31 @@ fn get_instance() -> &'static Instance {
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 pub struct Args {
-    /// Add this flag if you don't want to display memory information in the
-    /// text output.
-    #[arg(long, default_value_t = false)]
-    text_no_memory: bool,
-
     /// Polling interval in milliseconds
     #[arg(long)]
     interval: Option<u64>,
+
+    /// The format you want to display for `text`.
+    /// For example,"{gpu_utilization}%|{mem_rw}%".
+    #[arg(long)]
+    text_format: Option<String>,
+
+    /// The format you want to display for `text`.
+    /// For example,
+    /// "GPU: {gpu_utilization}%\n
+    /// MEM USED: {mem_used}/{mem_total} MiB ({mem_utilization}%)\n
+    /// MEM R/W: {mem_rw}%\n
+    /// DEC: {decoder_utilization}%\n
+    /// ENC: {encoder_utilization}%\n
+    /// TEMP: {temperature}°C\n
+    /// POWER: {power}W\n
+    /// PSTATE: {p_state}\n
+    /// PLEVEL: {p_level}\n
+    /// FAN SPEED: {fan_speed}%\n
+    /// TX: {tx} MiB/s\n
+    /// RX: {rx} MiB/s"
+    #[arg(long)]
+    tooltip_format: Option<String>,
 }
 
 fn main() -> Result<()> {

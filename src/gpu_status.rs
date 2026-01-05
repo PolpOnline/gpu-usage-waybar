@@ -1,10 +1,12 @@
 use amdgpu_sysfs::gpu_handle::PerformanceLevel;
 use color_eyre::eyre::Result;
+use serde::Serialize;
+use serde_json::Value;
 use strum::Display;
 
 use crate::config::structs::ConfigFile;
 
-#[derive(Default)]
+#[derive(Default, Serialize)]
 pub struct GpuStatusData {
     /// Whether GPU is powered on at the PCI level.
     pub(crate) powered_on: bool,
@@ -36,32 +38,6 @@ pub struct GpuStatusData {
     pub(crate) rx: Option<f64>,
 }
 
-/// Formats the value if it is `Some`, appends it to the `fmt` string,
-/// and pushes it to the `target` string.
-macro_rules! conditional_append {
-    ($target:ident, $fmt:expr, $value:expr) => {
-        if let Some(value) = $value {
-            $target.push_str(&format!($fmt, value));
-        }
-    };
-
-    // Same but with two values
-    ($target:ident, $fmt:expr, $src1:expr, $src2:expr) => {
-        if let (Some(value1), Some(value2)) = ($src1, $src2) {
-            $target.push_str(&format!($fmt, value1, value2));
-        }
-    };
-
-    // Same but with four values
-    ($target:ident, $fmt:expr, $src1:expr, $src2:expr, $src3:expr, $src4:expr) => {
-        if let (Some(value1), Some(value2), Some(value3), Some(value4)) =
-            ($src1, $src2, $src3, $src4)
-        {
-            $target.push_str(&format!($fmt, value1, value2, value3, value4));
-        }
-    };
-}
-
 impl GpuStatusData {
     pub(crate) fn compute_mem_usage(&self) -> Option<u8> {
         if let (Some(mem_used), Some(mem_total)) = (self.mem_used, self.mem_total) {
@@ -76,72 +52,43 @@ impl GpuStatusData {
             return "Off".to_string();
         }
 
-        let mut text = String::new();
+        let format = &config.text.format;
 
-        conditional_append!(text, "{}%", self.gpu_utilization);
-
-        if config.text.show_memory {
-            conditional_append!(text, "|{}%", self.compute_mem_usage());
-        }
-
-        text
+        self.format_with_fields(format)
     }
 
-    pub fn get_tooltip(&self, config_file: &ConfigFile) -> String {
+    pub fn get_tooltip(&self, config: &ConfigFile) -> String {
         if !self.powered_on {
             return "GPU powered off".to_string();
         }
 
-        let config = &config_file.tooltip;
+        let format = &config.tooltip.format;
+        self.format_with_fields(format)
+    }
 
-        let mut tooltip = String::new();
+    fn format_with_fields(&self, s: &str) -> String {
+        let mut value = serde_json::to_value(self).unwrap();
+        let map = value.as_object_mut().unwrap();
 
-        conditional_append!(
-            tooltip,
-            "{}: {}%\n",
-            config.gpu_utilization.get_text(),
-            self.gpu_utilization
-        );
-        conditional_append!(
-            tooltip,
-            "{}: {}/{} MiB ({}%)\n",
-            config.mem_used.get_text(),
-            self.mem_used.map(|v| v.round() as u64),
-            self.mem_total.map(|v| v.round() as u64),
-            self.compute_mem_usage()
-        );
-        conditional_append!(tooltip, "{}: {}%\n", config.mem_rw.get_text(), self.mem_rw);
-        conditional_append!(
-            tooltip,
-            "{}: {}%\n",
-            config.decoder_utilization.get_text(),
-            self.decoder_utilization
-        );
-        conditional_append!(
-            tooltip,
-            "{}: {}%\n",
-            config.encoder_utilization.get_text(),
-            self.encoder_utilization
-        );
-        conditional_append!(
-            tooltip,
-            "{}: {}°C\n",
-            config.temperature.get_text(),
-            self.temperature
-        );
-        conditional_append!(tooltip, "{}: {}W\n", config.power.get_text(), self.power);
-        conditional_append!(tooltip, "{}: {}\n", config.p_state.get_text(), self.p_state);
-        conditional_append!(tooltip, "{}: {}\n", config.p_level.get_text(), self.p_level);
-        conditional_append!(
-            tooltip,
-            "{}: {}%\n",
-            config.fan_speed.get_text(),
-            self.fan_speed
-        );
-        conditional_append!(tooltip, "{}: {} MiB/s\n", config.tx.get_text(), self.tx);
-        conditional_append!(tooltip, "{}: {} MiB/s\n", config.rx.get_text(), self.rx);
+        if let Some(mem_util) = self.compute_mem_usage() {
+            map.insert(
+                "mem_utilization".to_string(),
+                Value::Number(mem_util.into()),
+            );
+        }
 
-        tooltip.trim().to_string()
+        let mut result = s.to_string();
+        for (key, val) in map {
+            let placeholder = format!("{{{}}}", key);
+            let val_str = match val {
+                Value::String(s) => s.clone(),
+                Value::Null => "N/A".to_string(),
+                _ => val.to_string(),
+            };
+            result = result.replace(&placeholder, &val_str);
+        }
+
+        result
     }
 }
 
@@ -149,7 +96,7 @@ pub trait GpuStatus {
     fn compute(&self) -> Result<GpuStatusData>;
 }
 
-#[derive(Default, Display, Copy, Clone)]
+#[derive(Default, Display, Copy, Clone, Serialize)]
 pub(crate) enum PState {
     P0,
     P1,

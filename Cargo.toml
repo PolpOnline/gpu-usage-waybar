@@ -9,13 +9,14 @@ readme = "README.md"
 repository = "https://github.com/PolpOnline/gpu-usage-waybar"
 
 [dependencies]
-amdgpu-sysfs = "0.19.0"
+amdgpu-sysfs = { version = "0.19.0", features = ["serde"] }
 clap = { version = "4.5.20", features = ["cargo", "derive"] }
 color-eyre = "0.6.3"
 etcetera = "0.11.0"
 nvml-wrapper = "0.11.0"
 regex = "1.11.1"
 serde = { version = "1.0.214", features = ["derive"] }
+serde_json = "1.0.148"
 sonic-rs = "0.5.0"
 smart-default = "0.7.1"
 strum = { version = "0.27.0", features = ["derive"] }
