@@ -6,6 +6,8 @@ use crate::config::structs::ConfigFile;
 
 #[derive(Default)]
 pub struct GpuStatusData {
+    /// Whether any process is using GPU.
+    pub(crate) has_running_processes: bool,
     /// Whether GPU is powered on at the PCI level.
     pub(crate) powered_on: bool,
     /// GPU utilization in percent.
@@ -76,6 +78,10 @@ impl GpuStatusData {
             return "Off".to_string();
         }
 
+        if !self.has_running_processes {
+            return "Idle".to_string();
+        }
+
         let mut text = String::new();
 
         conditional_append!(text, "{}%", self.gpu_utilization);
@@ -90,6 +96,10 @@ impl GpuStatusData {
     pub fn get_tooltip(&self, config_file: &ConfigFile) -> String {
         if !self.powered_on {
             return "GPU powered off".to_string();
+        }
+
+        if !self.has_running_processes {
+            return "GPU idle".to_string();
         }
 
         let config = &config_file.tooltip;
