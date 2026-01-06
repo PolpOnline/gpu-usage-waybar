@@ -16,7 +16,6 @@ etcetera = "0.11.0"
 nvml-wrapper = "0.11.0"
 regex = "1.11.1"
 serde = { version = "1.0.214", features = ["derive"] }
-serde_json = "1.0.148"
 sonic-rs = "0.5.0"
 smart-default = "0.7.1"
 strum = { version = "0.27.0", features = ["derive"] }

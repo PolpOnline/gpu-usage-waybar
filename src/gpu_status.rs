@@ -1,7 +1,7 @@
 use amdgpu_sysfs::gpu_handle::PerformanceLevel;
 use color_eyre::eyre::Result;
 use serde::Serialize;
-use serde_json::Value;
+use sonic_rs::{JsonValueMutTrait, JsonValueTrait, Value};
 use strum::Display;
 
 use crate::config::structs::ConfigFile;
@@ -67,25 +67,22 @@ impl GpuStatusData {
     }
 
     fn format_with_fields(&self, s: &str) -> String {
-        let mut value = serde_json::to_value(self).unwrap();
-        let map = value.as_object_mut().unwrap();
+        let mut value = sonic_rs::to_value(self).unwrap();
+        let obj = value.as_object_mut().unwrap();
 
         if let Some(mem_util) = self.compute_mem_usage() {
-            map.insert(
-                "mem_utilization".to_string(),
-                Value::Number(mem_util.into()),
-            );
+            obj.insert("mem_utilization", mem_util);
         }
 
         let mut result = s.to_string();
-        for (key, val) in map {
+        for (key, val) in obj {
             let placeholder = format!("{{{}}}", key);
-            let val_str = match val {
-                Value::String(s) => s.clone(),
-                Value::Null => "N/A".to_string(),
-                _ => val.to_string(),
+            let val_str = if val.is_null() {
+                "N/A"
+            } else {
+                &val.to_string()
             };
-            result = result.replace(&placeholder, &val_str);
+            result = result.replace(&placeholder, val_str);
         }
 
         result
