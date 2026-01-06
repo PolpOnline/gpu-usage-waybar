@@ -10,7 +10,7 @@ use crate::config::structs::ConfigFile;
 pub static RE: OnceLock<Regex> = OnceLock::new();
 
 fn get_regex() -> &'static Regex {
-    RE.get_or_init(|| Regex::new(r"\{([^}]+)\}").unwrap())
+    RE.get_or_init(|| Regex::new(r"\{([^}]+)}").unwrap())
 }
 
 #[derive(Default)]
