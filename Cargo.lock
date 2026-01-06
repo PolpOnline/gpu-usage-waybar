@@ -46,7 +46,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "31655bb689eb37913111f1697f8549c3ed88d0db2f56c52a448afab4065471e4"
 dependencies = [
  "enum_dispatch",
- "serde",
 ]
 
 [[package]]

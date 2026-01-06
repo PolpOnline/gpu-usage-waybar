@@ -14,7 +14,7 @@ fn get_regex() -> &'static Regex {
     RE.get_or_init(|| Regex::new(r"\{([^}]+)\}").unwrap())
 }
 
-#[derive(Default, Serialize)]
+#[derive(Default)]
 pub struct GpuStatusData {
     /// Whether GPU is powered on at the PCI level.
     pub(crate) powered_on: bool,
@@ -117,7 +117,7 @@ pub trait GpuStatus {
     fn compute(&self) -> Result<GpuStatusData>;
 }
 
-#[derive(Default, Display, Copy, Clone, Serialize)]
+#[derive(Default, Display, Copy, Clone)]
 pub(crate) enum PState {
     P0,
     P1,
