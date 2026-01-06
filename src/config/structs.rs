@@ -33,7 +33,7 @@ impl ConfigFile {
 #[serde(deny_unknown_fields)]
 #[serde(default)]
 pub struct TextConfig {
-    #[default("{gpu_utilization}%|{mem_rw}%")]
+    #[default("{gpu_utilization}%|{mem_utilization}%")]
     pub format: String,
 }
 

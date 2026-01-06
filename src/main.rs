@@ -56,7 +56,7 @@ pub struct Args {
     interval: Option<u64>,
 
     /// The format you want to display for `text`.
-    /// For example,"{gpu_utilization}%|{mem_rw}%".
+    /// For example,"{gpu_utilization}%|{mem_utilization}%".
     #[arg(long)]
     text_format: Option<String>,
 
