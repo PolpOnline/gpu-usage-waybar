@@ -1,7 +1,7 @@
 use amdgpu_sysfs::gpu_handle::PerformanceLevel;
 use color_eyre::eyre::Result;
 use serde::Serialize;
-use sonic_rs::{JsonValueMutTrait, JsonValueTrait, Value};
+use sonic_rs::{JsonValueMutTrait, JsonValueTrait};
 use strum::Display;
 
 use crate::config::structs::ConfigFile;
