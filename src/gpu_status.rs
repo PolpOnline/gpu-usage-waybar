@@ -1,10 +1,18 @@
 use amdgpu_sysfs::gpu_handle::PerformanceLevel;
 use color_eyre::eyre::Result;
+use regex::Regex;
 use serde::Serialize;
-use sonic_rs::{JsonValueMutTrait, JsonValueTrait};
+use std::borrow::Cow;
+use std::sync::OnceLock;
 use strum::Display;
 
 use crate::config::structs::ConfigFile;
+
+pub static RE: OnceLock<Regex> = OnceLock::new();
+
+fn get_regex() -> &'static Regex {
+    RE.get_or_init(|| Regex::new(r"\{([^}]+)\}").unwrap())
+}
 
 #[derive(Default, Serialize)]
 pub struct GpuStatusData {
@@ -67,25 +75,41 @@ impl GpuStatusData {
     }
 
     fn format_with_fields(&self, s: &str) -> String {
-        let mut value = sonic_rs::to_value(self).unwrap();
-        let obj = value.as_object_mut().unwrap();
+        // Regex to match patterns like {variable_name}
+        let re = get_regex();
 
-        if let Some(mem_util) = self.compute_mem_usage() {
-            obj.insert("mem_utilization", mem_util);
-        }
+        re.replace_all(s, |caps: &regex::Captures| {
+            let key = &caps[1];
+            self.get_field(key)
+        })
+        .into_owned()
+    }
 
-        let mut result = s.to_string();
-        for (key, val) in obj {
-            let placeholder = format!("{{{}}}", key);
-            let val_str = if val.is_null() {
-                "N/A"
-            } else {
-                &val.to_string()
+    fn get_field(&self, name: &str) -> Cow<'_, str> {
+        // Local macro to reduce boilerplate
+        macro_rules! s {
+            ($val:expr) => {
+                $val.map_or(Cow::Borrowed("N/A"), |v| Cow::Owned(v.to_string()))
             };
-            result = result.replace(&placeholder, val_str);
         }
 
-        result
+        match name {
+            "gpu_utilization" => s!(self.gpu_utilization),
+            "mem_used" => s!(self.mem_used),
+            "mem_total" => s!(self.mem_total),
+            "mem_rw" => s!(self.mem_rw),
+            "mem_utilization" => s!(self.compute_mem_usage()),
+            "decoder_utilization" => s!(self.decoder_utilization),
+            "encoder_utilization" => s!(self.encoder_utilization),
+            "temperature" => s!(self.temperature),
+            "power" => s!(self.power),
+            "p_state" => s!(self.p_state),
+            "p_level" => s!(self.p_level),
+            "fan_speed" => s!(self.fan_speed),
+            "tx" => s!(self.tx),
+            "rx" => s!(self.rx),
+            _ => panic!("Unsupported field `{}`", name),
+        }
     }
 }
 
