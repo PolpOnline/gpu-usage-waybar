@@ -1,7 +1,6 @@
 use amdgpu_sysfs::gpu_handle::PerformanceLevel;
 use color_eyre::eyre::Result;
 use regex::Regex;
-use serde::Serialize;
 use std::borrow::Cow;
 use std::sync::OnceLock;
 use strum::Display;
@@ -108,7 +107,7 @@ impl GpuStatusData {
             "fan_speed" => s!(self.fan_speed),
             "tx" => s!(self.tx),
             "rx" => s!(self.rx),
-            _ => panic!("Unsupported field `{}`", name),
+            _ => Cow::Borrowed("Unsupported field. It may be a typo."),
         }
     }
 }
