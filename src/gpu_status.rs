@@ -1,8 +1,8 @@
+use std::{borrow::Cow, sync::OnceLock};
+
 use amdgpu_sysfs::gpu_handle::PerformanceLevel;
 use color_eyre::eyre::Result;
 use regex::Regex;
-use std::borrow::Cow;
-use std::sync::OnceLock;
 use strum::Display;
 
 use crate::config::structs::ConfigFile;
@@ -94,8 +94,8 @@ impl GpuStatusData {
 
         match name {
             "gpu_utilization" => s!(self.gpu_utilization),
-            "mem_used" => s!(self.mem_used),
-            "mem_total" => s!(self.mem_total),
+            "mem_used" => s!(self.mem_used.map(|v| v.round() as u64)),
+            "mem_total" => s!(self.mem_total.map(|v| v.round() as u64)),
             "mem_rw" => s!(self.mem_rw),
             "mem_utilization" => s!(self.compute_mem_usage()),
             "decoder_utilization" => s!(self.decoder_utilization),
