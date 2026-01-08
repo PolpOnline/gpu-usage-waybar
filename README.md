@@ -46,7 +46,7 @@ Add the custom module to the config, use
 }
 ```
 
-# Configurations
+# Configuration
 
 The crate has a configuration file (located at `$XDG_CONFIG_HOME/gpu_usage_waybar.toml`)
 which can be used to set various options about the output.
@@ -71,8 +71,10 @@ FAN SPEED: {fan_speed}%
 TX: {tx} MiB/s
 RX: {rx} MiB/s"""
 ```
+The text format defaults to `"{gpu_utilization}%|{mem_utilization}%"`. 
+The tooltip defaults to all fields that are supported by your GPU if not customized. 
 
-You can also set them with CLI args.
+You can also set the output format with CLI args using `--text-format` and `--tooltip-format`.
 <details>
 <summary>Available fields</summary>
 
