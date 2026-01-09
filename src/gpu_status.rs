@@ -1,15 +1,13 @@
-use std::{borrow::Cow, sync::OnceLock};
-
+use crate::config::structs::ConfigFile;
 use amdgpu_sysfs::gpu_handle::PerformanceLevel;
 use color_eyre::eyre::Result;
 use regex::Regex;
+use std::{borrow::Cow, sync::OnceLock};
 use strum::Display;
 
-use crate::config::structs::ConfigFile;
+static RE: OnceLock<Regex> = OnceLock::new();
 
-pub static RE: OnceLock<Regex> = OnceLock::new();
-
-fn get_regex() -> &'static Regex {
+pub fn get_regex() -> &'static Regex {
     RE.get_or_init(|| Regex::new(r"\{([^}]+)}").unwrap())
 }
 
@@ -73,22 +71,11 @@ impl GpuStatusData {
         self.format_with_fields(format)
     }
 
-    fn format_with_fields(&self, s: &str) -> String {
-        // Regex to match patterns like {variable_name}
-        let re = get_regex();
-
-        re.replace_all(s, |caps: &regex::Captures| {
-            let key = &caps[1];
-            self.get_field(key)
-        })
-        .into_owned()
-    }
-
-    fn get_field(&self, name: &str) -> Cow<'_, str> {
+    pub fn get_field(&self, name: &str) -> Option<String> {
         // Local macro to reduce boilerplate
         macro_rules! s {
             ($val:expr) => {
-                $val.map_or(Cow::Borrowed("N/A"), |v| Cow::Owned(v.to_string()))
+                $val.map(|v| v.to_string())
             };
         }
 
@@ -107,8 +94,21 @@ impl GpuStatusData {
             "fan_speed" => s!(self.fan_speed),
             "tx" => s!(self.tx),
             "rx" => s!(self.rx),
-            _ => Cow::Borrowed("Unsupported field. It may be a typo."),
+            _ => None,
         }
+    }
+
+    fn format_with_fields(&self, s: &str) -> String {
+        // Regex to match patterns like {variable_name}
+        let re = get_regex();
+
+        re.replace_all(s, |caps: &regex::Captures| {
+            let key = &caps[1];
+            self.get_field(key)
+                .map(Cow::Owned)
+                .unwrap_or(Cow::Borrowed("N/A"))
+        })
+        .into_owned()
     }
 }
 

@@ -3,22 +3,20 @@ pub mod config;
 pub mod gpu_status;
 pub mod nvidia;
 
-use std::{
-    io::{Write, stdout},
-    sync::OnceLock,
-    time::Duration,
-};
-
-use clap::Parser;
-use color_eyre::eyre::{Result, eyre};
-use nvml_wrapper::Nvml;
-use serde::Serialize;
-
 use crate::{
     amd::{AmdGpuStatus, AmdSysFS},
     config::structs::ConfigFile,
     gpu_status::{GpuStatus, GpuStatusData},
     nvidia::NvidiaGpuStatus,
+};
+use clap::Parser;
+use color_eyre::eyre::{Result, eyre};
+use nvml_wrapper::Nvml;
+use serde::Serialize;
+use std::{
+    io::{Write, stdout},
+    sync::OnceLock,
+    time::Duration,
 };
 
 pub enum Instance {
@@ -91,6 +89,14 @@ fn main() -> Result<()> {
         Instance::Nvml(nvml) => Box::new(NvidiaGpuStatus::new(nvml)?),
         Instance::Amd(amd_sys_fs) => Box::new(AmdGpuStatus::new(amd_sys_fs)?),
     };
+
+    // If the tooltip format is default (i.e., the user didn't set a custom format),
+    // automatically hide any unavailable fields.
+    if config.tooltip.is_default() {
+        // Fetch the data once to determine which fields are available
+        let gpu_status_data = gpu_status_handler.compute()?;
+        config.tooltip.retain_lines_with_values(&gpu_status_data);
+    }
 
     let update_interval = Duration::from_millis(config.general.interval);
 

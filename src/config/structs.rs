@@ -1,8 +1,10 @@
+use crate::{
+    Args,
+    gpu_status::{self, GpuStatusData},
+};
 use color_eyre::Result;
 use serde::Deserialize;
 use smart_default::SmartDefault;
-
-use crate::Args;
 
 #[derive(Default, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -64,4 +66,66 @@ TX: {tx} MiB/s
 RX: {rx} MiB/s"
     )]
     pub format: String,
+}
+
+impl TooltipConfig {
+    pub fn is_default(&self) -> bool {
+        self.format == Self::default().format
+    }
+
+    /// Retain lines that have available values.
+    pub fn retain_lines_with_values(&mut self, data: &GpuStatusData) {
+        let mut result = String::new();
+        let re = gpu_status::get_regex();
+
+        for line in self.format.split_inclusive('\n') {
+            if let Some(caps) = re.captures(line)
+                && data.get_field(&caps[1]).is_none()
+            {
+                continue;
+            }
+
+            result.push_str(line);
+        }
+
+        self.format = result;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        config::structs::TooltipConfig,
+        gpu_status::{GpuStatusData, PState},
+    };
+
+    #[test]
+    fn test_retain_some_fields() {
+        let data = GpuStatusData {
+            p_state: Some(PState::P0),
+            p_level: None,
+            fan_speed: None,
+            tx: Some(5.2),
+            rx: Some(6.7),
+            ..Default::default()
+        };
+
+        let mut config = TooltipConfig {
+            format: r"PSTATE: {p_state}
+PLEVEL: {p_level}
+FAN SPEED: {fan_speed}%
+TX: {tx} MiB/s
+RX: {rx} MiB/s"
+                .to_string(),
+        };
+
+        config.retain_lines_with_values(&data);
+
+        assert_eq!(
+            config.format,
+            r"PSTATE: {p_state}
+TX: {tx} MiB/s
+RX: {rx} MiB/s"
+        );
+    }
 }
