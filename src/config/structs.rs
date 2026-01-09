@@ -1,8 +1,10 @@
+use crate::{
+    Args,
+    gpu_status::{self, GpuStatusData},
+};
 use color_eyre::Result;
 use serde::Deserialize;
 use smart_default::SmartDefault;
-
-use crate::Args;
 
 #[derive(Default, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -15,12 +17,14 @@ pub struct ConfigFile {
 
 impl ConfigFile {
     pub fn merge_args_into_config(&mut self, args: &Args) -> Result<()> {
-        if args.text_no_memory {
-            self.text.show_memory = false;
-        }
-
         if let Some(interval) = args.interval {
             self.general.interval = interval;
+        }
+        if let Some(ref text_format) = args.text_format {
+            self.text.format = text_format.to_owned();
+        }
+        if let Some(ref tooltip_format) = args.tooltip_format {
+            self.tooltip.format = tooltip_format.to_owned();
         }
 
         Ok(())
@@ -31,8 +35,8 @@ impl ConfigFile {
 #[serde(deny_unknown_fields)]
 #[serde(default)]
 pub struct TextConfig {
-    #[default(true)]
-    pub show_memory: bool,
+    #[default("{gpu_utilization}%|{mem_utilization}%")]
+    pub format: String,
 }
 
 #[derive(Deserialize, SmartDefault)]
@@ -43,60 +47,85 @@ pub struct GeneralConfig {
     pub interval: u64,
 }
 
-#[derive(Deserialize, Default)]
+#[derive(Deserialize, SmartDefault)]
 #[serde(deny_unknown_fields)]
 #[serde(default)]
 pub struct TooltipConfig {
-    pub gpu_utilization: ConfigGpuUtilization,
-    pub mem_used: ConfigMemUsed,
-    pub mem_rw: ConfigMemRW,
-    pub decoder_utilization: ConfigDecoderUtilization,
-    pub encoder_utilization: ConfigEncoderUtilization,
-    pub temperature: ConfigTemperature,
-    pub power: ConfigPower,
-    pub p_state: ConfigPerformanceState,
-    pub p_level: ConfigPerformanceLevel,
-    pub fan_speed: ConfigFanSpeed,
-    pub tx: ConfigTx,
-    pub rx: ConfigRx,
+    #[default(
+        r"GPU: {gpu_utilization}%
+MEM USED: {mem_used}/{mem_total} MiB ({mem_utilization}%)
+MEM R/W: {mem_rw}%
+DEC: {decoder_utilization}%
+ENC: {encoder_utilization}%
+TEMP: {temperature}°C
+POWER: {power}W
+PSTATE: {p_state}
+PLEVEL: {p_level}
+FAN SPEED: {fan_speed}%
+TX: {tx} MiB/s
+RX: {rx} MiB/s"
+    )]
+    pub format: String,
 }
 
-macro_rules! generate_icon_text_struct {
-    ($name:ident, $default_text:expr) => {
-        #[derive(serde::Deserialize)]
-        #[serde(deny_unknown_fields)]
-        #[serde(default)]
-        pub struct $name {
-            pub enabled: bool,
-            pub text: String,
+impl TooltipConfig {
+    pub fn is_default(&self) -> bool {
+        self.format == Self::default().format
+    }
+
+    /// Retain lines that have available values.
+    pub fn retain_lines_with_values(&mut self, data: &GpuStatusData) {
+        let mut result = String::new();
+        let re = gpu_status::get_regex();
+
+        for line in self.format.split_inclusive('\n') {
+            if let Some(caps) = re.captures(line)
+                && data.get_field(&caps[1]).is_none()
+            {
+                continue;
+            }
+
+            result.push_str(line);
         }
 
-        impl Default for $name {
-            fn default() -> Self {
-                Self {
-                    enabled: true,
-                    text: $default_text.to_string(),
-                }
-            }
-        }
+        self.format = result;
+    }
+}
 
-        impl $name {
-            pub fn get_text(&self) -> Option<&String> {
-                if self.enabled { Some(&self.text) } else { None }
-            }
-        }
+#[cfg(test)]
+mod tests {
+    use crate::{
+        config::structs::TooltipConfig,
+        gpu_status::{GpuStatusData, PState},
     };
-}
 
-generate_icon_text_struct!(ConfigGpuUtilization, "GPU");
-generate_icon_text_struct!(ConfigMemUsed, "MEM USED");
-generate_icon_text_struct!(ConfigMemRW, "MEM R/W");
-generate_icon_text_struct!(ConfigDecoderUtilization, "DEC");
-generate_icon_text_struct!(ConfigEncoderUtilization, "ENC");
-generate_icon_text_struct!(ConfigTemperature, "TEMP");
-generate_icon_text_struct!(ConfigPower, "POWER");
-generate_icon_text_struct!(ConfigPerformanceState, "PSTATE");
-generate_icon_text_struct!(ConfigPerformanceLevel, "PLEVEL");
-generate_icon_text_struct!(ConfigFanSpeed, "FAN SPEED");
-generate_icon_text_struct!(ConfigTx, "TX");
-generate_icon_text_struct!(ConfigRx, "RX");
+    #[test]
+    fn test_retain_some_fields() {
+        let data = GpuStatusData {
+            p_state: Some(PState::P0),
+            p_level: None,
+            fan_speed: None,
+            tx: Some(5.2),
+            rx: Some(6.7),
+            ..Default::default()
+        };
+
+        let mut config = TooltipConfig {
+            format: r"PSTATE: {p_state}
+PLEVEL: {p_level}
+FAN SPEED: {fan_speed}%
+TX: {tx} MiB/s
+RX: {rx} MiB/s"
+                .to_string(),
+        };
+
+        config.retain_lines_with_values(&data);
+
+        assert_eq!(
+            config.format,
+            r"PSTATE: {p_state}
+TX: {tx} MiB/s
+RX: {rx} MiB/s"
+        );
+    }
+}
