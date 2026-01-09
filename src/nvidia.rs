@@ -5,6 +5,7 @@ use nvml_wrapper::{
     Device, Nvml,
     enum_wrappers::device::{PcieUtilCounter, PerformanceState, TemperatureSensor},
 };
+use procfs::process::{FDTarget, all_processes};
 
 use crate::gpu_status::{GpuStatus, GpuStatusData, PState};
 
@@ -26,6 +27,12 @@ impl NvidiaGpuStatus<'_> {
     }
 }
 
+enum GpuPowerState {
+    Off,
+    OnNoProcess,
+    PoweredOnInUse,
+}
+
 fn is_powered_on(bus_id: &str) -> Result<bool> {
     let path = format!("/sys/bus/pci/devices/{bus_id}/power/runtime_status");
     let status = match fs::read_to_string(path) {
@@ -41,56 +48,132 @@ fn is_powered_on(bus_id: &str) -> Result<bool> {
     Ok(powered_on)
 }
 
+/// Returns `true` if there is any process currently using GPU 0.
+///
+/// This function checks whether `/dev/nvidia0` is opened by any process
+/// other than the current one without waking up the GPU by scanning `/proc/*/fd`.
+///
+/// # Note
+///
+/// Do not use
+/// [nvml_wrapper::device::Device::running_compute_processes_count] or
+/// [nvml_wrapper::device::Device::running_graphics_processes_count]
+/// as they wake up the GPU.
+///
+/// # References
+///
+/// https://wiki.archlinux.org/title/PRIME#NVIDIA
+fn has_running_processes() -> bool {
+    let procs = all_processes().expect("Can't read /proc");
+
+    for proc in procs.flatten() {
+        if proc.pid == std::process::id() as i32 {
+            continue;
+        }
+
+        let Ok(fds) = proc.fd() else {
+            continue;
+        };
+
+        for fd in fds.flatten() {
+            if let FDTarget::Path(ref path) = fd.target
+                && path == "/dev/nvidia0"
+            {
+                return true;
+            }
+        }
+    }
+
+    false
+}
+
+impl NvidiaGpuStatus<'_> {
+    fn detect_gpu_presence(&self) -> Result<GpuPowerState> {
+        if !is_powered_on(&self.bus_id)? {
+            return Ok(GpuPowerState::Off);
+        }
+
+        if !has_running_processes() {
+            return Ok(GpuPowerState::OnNoProcess);
+        }
+
+        Ok(GpuPowerState::PoweredOnInUse)
+    }
+
+    fn collect_active_gpu_stats(&self) -> GpuStatusData {
+        let device = &self.device;
+        let utilization_rates = device.utilization_rates().ok();
+        let memory_info_in_bytes = device.memory_info().ok();
+
+        GpuStatusData {
+            powered_on: true,
+            has_running_processes: true,
+            gpu_utilization: utilization_rates.clone().map(|u| u.gpu as u8),
+            mem_used: memory_info_in_bytes
+                .clone()
+                .map(|m| m.used as f64 / 1024f64 / 1024f64), // convert to MiB from B
+            mem_total: memory_info_in_bytes.map(|m| m.total as f64 / 1024f64 / 1024f64),
+            mem_rw: utilization_rates.map(|u| u.memory as u8),
+            decoder_utilization: device
+                .decoder_utilization()
+                .ok()
+                .map(|u| u.utilization as u8),
+            encoder_utilization: device
+                .encoder_utilization()
+                .ok()
+                .map(|u| u.utilization as u8),
+            temperature: device
+                .temperature(TemperatureSensor::Gpu)
+                .ok()
+                .map(|t| t as u8),
+            power: device.power_usage().ok().map(|p| p as f64 / 1000f64), /* convert to W
+                                                                           * from mW */
+            p_state: device.performance_state().ok().map(|p| p.into()),
+            fan_speed: device.fan_speed(0u32).ok().map(|f| f as u8),
+            tx: device
+                .pcie_throughput(PcieUtilCounter::Send)
+                .ok()
+                .map(|t| t as f64 / 1000f64), // convert to MiB/s from KiB/s
+            rx: device
+                .pcie_throughput(PcieUtilCounter::Receive)
+                .ok()
+                .map(|t| t as f64 / 1000f64),
+            ..Default::default()
+        }
+    }
+}
+
 impl GpuStatus for NvidiaGpuStatus<'_> {
     fn compute(&self) -> Result<GpuStatusData> {
-        // NVML queries inadvertently wake the NVIDIA card
-        // Use sysfs to check power status first
-        let powered_on = is_powered_on(&self.bus_id)?;
-        let gpu_status = if !powered_on {
-            GpuStatusData {
+        // GPU status computation is split into two stages to avoid inadvertently
+        // waking up the NVIDIA GPU during idle periods:
+        //
+        // 1. Presence check (doesn't wake GPU):
+        //    - Uses sysfs to check PCI-level power status (`is_powered_on`).
+        //    - Scans /proc via procfs to see if any process is currently using
+        //      the GPU device node
+        //    This stage does not invoke NVML and therefore does not wake the GPU.
+        //
+        // 2. NVML collection (wake GPU):
+        //    - Only executed if the GPU is powered on and has running processes.
+        //    - Collects utilization rates, memory info, temperature, PCIe throughput,
+        //      encoder/decoder usage, fan speed, power draw, etc.
+        //    This stage gives full metrics but is gated to minimize unnecessary GPU wake-ups.
+        //
+        // By structuring the polling this way, we maintain power-awareness while
+        // still collecting full GPU metrics when the device is actively in use.
+        let gpu_status = match self.detect_gpu_presence()? {
+            GpuPowerState::Off => GpuStatusData {
                 powered_on: false,
+                has_running_processes: false,
                 ..Default::default()
-            }
-        } else {
-            let device = &self.device;
-
-            let utilization_rates = device.utilization_rates().ok();
-            let memory_info_in_bytes = device.memory_info().ok();
-
-            GpuStatusData {
+            },
+            GpuPowerState::OnNoProcess => GpuStatusData {
                 powered_on: true,
-                gpu_utilization: utilization_rates.clone().map(|u| u.gpu as u8),
-                mem_used: memory_info_in_bytes
-                    .clone()
-                    .map(|m| m.used as f64 / 1024f64 / 1024f64), // convert to MiB from B
-                mem_total: memory_info_in_bytes.map(|m| m.total as f64 / 1024f64 / 1024f64),
-                mem_rw: utilization_rates.map(|u| u.memory as u8),
-                decoder_utilization: device
-                    .decoder_utilization()
-                    .ok()
-                    .map(|u| u.utilization as u8),
-                encoder_utilization: device
-                    .encoder_utilization()
-                    .ok()
-                    .map(|u| u.utilization as u8),
-                temperature: device
-                    .temperature(TemperatureSensor::Gpu)
-                    .ok()
-                    .map(|t| t as u8),
-                power: device.power_usage().ok().map(|p| p as f64 / 1000f64), /* convert to W
-                                                                               * from mW */
-                p_state: device.performance_state().ok().map(|p| p.into()),
-                fan_speed: device.fan_speed(0u32).ok().map(|f| f as u8),
-                tx: device
-                    .pcie_throughput(PcieUtilCounter::Send)
-                    .ok()
-                    .map(|t| t as f64 / 1000f64), // convert to MiB/s from KiB/s
-                rx: device
-                    .pcie_throughput(PcieUtilCounter::Receive)
-                    .ok()
-                    .map(|t| t as f64 / 1000f64),
+                has_running_processes: false,
                 ..Default::default()
-            }
+            },
+            GpuPowerState::PoweredOnInUse => self.collect_active_gpu_stats(),
         };
 
         Ok(gpu_status)

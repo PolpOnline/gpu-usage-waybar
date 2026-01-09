@@ -13,6 +13,8 @@ pub fn get_regex() -> &'static Regex {
 
 #[derive(Default)]
 pub struct GpuStatusData {
+    /// Whether any process is using GPU.
+    pub(crate) has_running_processes: bool,
     /// Whether GPU is powered on at the PCI level.
     pub(crate) powered_on: bool,
     /// GPU utilization in percent.
@@ -57,14 +59,21 @@ impl GpuStatusData {
             return "Off".to_string();
         }
 
-        let format = &config.text.format;
+        if !self.has_running_processes {
+            return "Idle".to_string();
+        }
 
+        let format = &config.text.format;
         self.format_with_fields(format)
     }
 
     pub fn get_tooltip(&self, config: &ConfigFile) -> String {
         if !self.powered_on {
             return "GPU powered off".to_string();
+        }
+
+        if !self.has_running_processes {
+            return "GPU idle".to_string();
         }
 
         let format = &config.tooltip.format;

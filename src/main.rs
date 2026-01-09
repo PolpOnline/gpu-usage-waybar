@@ -27,12 +27,12 @@ pub enum Instance {
 impl Instance {
     /// Get the instance based on the GPU brand.
     pub fn new() -> Result<Self> {
-        let modules_file = std::fs::read_to_string("/proc/modules")?;
+        let modules = procfs::modules()?;
 
-        if modules_file.contains("nvidia") {
+        if modules.contains_key("nvidia") {
             return Ok(Self::Nvml(Box::new(Nvml::init()?)));
         }
-        if modules_file.contains("amdgpu") {
+        if modules.contains_key("amdgpu") {
             return Ok(Self::Amd(Box::new(AmdSysFS::init()?)));
         }
 
