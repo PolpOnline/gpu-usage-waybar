@@ -74,6 +74,11 @@ impl TooltipConfig {
     }
 
     /// Retain lines that have available values.
+    ///
+    /// # Note
+    ///
+    /// This function checks **only the first variable** referenced in each line.
+    /// A line is removed **only if** the first variable evaluates to `None`.
     pub fn retain_lines_with_values(&mut self, data: &GpuStatusData) {
         let mut result = String::new();
         let re = gpu_status::get_regex();
