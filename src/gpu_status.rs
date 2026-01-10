@@ -123,6 +123,11 @@ impl GpuStatusData {
 
 pub trait GpuStatus {
     fn compute(&self) -> Result<GpuStatusData>;
+
+    /// Compute [GpuStatusData] regardless of idle or power state.
+    fn compute_force(&self) -> Result<GpuStatusData> {
+        self.compute()
+    }
 }
 
 #[derive(Default, Display, Copy, Clone)]

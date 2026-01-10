@@ -94,7 +94,7 @@ fn main() -> Result<()> {
     // automatically hide any unavailable fields.
     if config.tooltip.is_default() {
         // Fetch the data once to determine which fields are available
-        let gpu_status_data = gpu_status_handler.compute()?;
+        let gpu_status_data = gpu_status_handler.compute_force()?;
         config.tooltip.retain_lines_with_values(&gpu_status_data);
     }
 

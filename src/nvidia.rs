@@ -178,6 +178,10 @@ impl GpuStatus for NvidiaGpuStatus<'_> {
 
         Ok(gpu_status)
     }
+
+    fn compute_force(&self) -> Result<GpuStatusData> {
+        Ok(self.collect_active_gpu_stats())
+    }
 }
 
 impl From<PerformanceState> for PState {
