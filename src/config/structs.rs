@@ -24,7 +24,7 @@ impl ConfigFile {
             self.text.format = text_format.to_owned();
         }
         if let Some(ref tooltip_format) = args.tooltip_format {
-            self.tooltip.format = tooltip_format.to_owned();
+            self.tooltip.format = Some(tooltip_format.to_owned());
         }
 
         Ok(())
@@ -51,8 +51,11 @@ pub struct GeneralConfig {
 #[serde(deny_unknown_fields)]
 #[serde(default)]
 pub struct TooltipConfig {
-    #[default(
-        r"GPU: {gpu_utilization}%
+    format: Option<String>,
+}
+
+impl TooltipConfig {
+    pub const DEFAULT_FORMAT: &str = r"GPU: {gpu_utilization}%
 MEM USED: {mem_used}/{mem_total} MiB ({mem_utilization}%)
 MEM R/W: {mem_rw}%
 DEC: {decoder_utilization}%
@@ -63,14 +66,14 @@ PSTATE: {p_state}
 PLEVEL: {p_level}
 FAN SPEED: {fan_speed}%
 TX: {tx} MiB/s
-RX: {rx} MiB/s"
-    )]
-    pub format: String,
-}
+RX: {rx} MiB/s";
 
-impl TooltipConfig {
-    pub fn is_default(&self) -> bool {
-        self.format == Self::default().format
+    pub fn format(&self) -> &str {
+        self.format.as_deref().unwrap_or(Self::DEFAULT_FORMAT)
+    }
+
+    pub fn is_format_set(&self) -> bool {
+        self.format.is_some()
     }
 
     /// Retain lines that have available values.
@@ -83,7 +86,7 @@ impl TooltipConfig {
         let mut result = String::new();
         let re = gpu_status::get_regex();
 
-        for line in self.format.split_inclusive('\n') {
+        for line in self.format().split_inclusive('\n') {
             if let Some(caps) = re.captures(line)
                 && data.get_field(&caps[1]).is_none()
             {
@@ -93,7 +96,7 @@ impl TooltipConfig {
             result.push_str(line);
         }
 
-        self.format = result;
+        self.format = Some(result);
     }
 }
 
@@ -116,18 +119,20 @@ mod tests {
         };
 
         let mut config = TooltipConfig {
-            format: r"PSTATE: {p_state}
+            format: Some(
+                r"PSTATE: {p_state}
 PLEVEL: {p_level}
 FAN SPEED: {fan_speed}%
 TX: {tx} MiB/s
 RX: {rx} MiB/s"
-                .to_string(),
+                    .to_string(),
+            ),
         };
 
         config.retain_lines_with_values(&data);
 
         assert_eq!(
-            config.format,
+            config.format.unwrap(),
             r"PSTATE: {p_state}
 TX: {tx} MiB/s
 RX: {rx} MiB/s"

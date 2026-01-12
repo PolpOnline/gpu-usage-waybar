@@ -90,9 +90,9 @@ fn main() -> Result<()> {
         Instance::Amd(amd_sys_fs) => Box::new(AmdGpuStatus::new(amd_sys_fs)?),
     };
 
-    // If the tooltip format is default (i.e., the user didn't set a custom format),
+    // If the the user didn't set a custom tooltip format,
     // automatically hide any unavailable fields.
-    if config.tooltip.is_default() {
+    if !config.tooltip.is_format_set() {
         // Fetch the data once to determine which fields are available
         let gpu_status_data = gpu_status_handler.compute_force()?;
         config.tooltip.retain_lines_with_values(&gpu_status_data);

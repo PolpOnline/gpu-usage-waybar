@@ -76,7 +76,7 @@ impl GpuStatusData {
             return "GPU idle".to_string();
         }
 
-        let format = &config.tooltip.format;
+        let format = &config.tooltip.format();
         self.format_with_fields(format)
     }
 
