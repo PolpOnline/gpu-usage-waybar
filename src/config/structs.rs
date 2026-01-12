@@ -1,10 +1,11 @@
+use color_eyre::Result;
+use serde::Deserialize;
+use smart_default::SmartDefault;
+
 use crate::{
     Args,
     gpu_status::{self, GpuStatusData},
 };
-use color_eyre::Result;
-use serde::Deserialize;
-use smart_default::SmartDefault;
 
 #[derive(Default, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -76,20 +77,24 @@ RX: {rx} MiB/s";
         self.format.is_some()
     }
 
-    /// Retain lines that have available values.
+    /// Retain lines that have available values in the format string.
     ///
     /// # Note
     ///
-    /// This function checks **only the first variable** referenced in each line.
-    /// A line is removed **only if** the first variable evaluates to `None`.
+    /// This function modifies the `format` field in place.
+    /// If a line contains **any** placeholder without a corresponding value
+    /// in `data`, that entire line is removed from the format.
     pub fn retain_lines_with_values(&mut self, data: &GpuStatusData) {
         let mut result = String::new();
         let re = gpu_status::get_regex();
 
         for line in self.format().split_inclusive('\n') {
-            if let Some(caps) = re.captures(line)
-                && data.get_field(&caps[1]).is_none()
-            {
+            // Check if ANY placeholder in the line has no value
+            let has_unavailable = re
+                .captures_iter(line)
+                .any(|caps| data.get_field(&caps[1]).is_none());
+
+            if has_unavailable {
                 continue;
             }
 
@@ -107,6 +112,7 @@ mod tests {
         gpu_status::{GpuStatusData, PState},
     };
 
+    /// Test that lines with unavailable fields are dropped.
     #[test]
     fn test_retain_some_fields() {
         let data = GpuStatusData {
@@ -137,5 +143,30 @@ RX: {rx} MiB/s"
 TX: {tx} MiB/s
 RX: {rx} MiB/s"
         );
+    }
+
+    /// Test that lines with multiple placeholders are dropped if any of them
+    /// have no value.
+    #[test]
+    fn test_retain_lines_with_multiple_placeholders() {
+        let data = GpuStatusData {
+            gpu_utilization: Some(50),
+            mem_used: Some(50.0),
+            mem_total: None, // This should cause the line to be dropped
+            p_state: Some(PState::P0),
+            p_level: None, // This should cause the line to be dropped
+            ..Default::default()
+        };
+
+        let format = r"GPU: {gpu_utilization}% | MEM: {mem_utilization}%
++PSTATE: {p_state} | PLEVEL: {p_level}";
+
+        let mut config = TooltipConfig {
+            format: Some(format.to_string()),
+        };
+
+        config.retain_lines_with_values(&data);
+        // Both lines should be dropped because each has at least one unavailable field
+        assert_eq!(config.format, Some("".to_string()));
     }
 }
