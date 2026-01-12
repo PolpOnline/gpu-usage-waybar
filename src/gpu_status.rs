@@ -105,7 +105,10 @@ impl GpuStatusData {
             "fan_speed" => s!(self.fan_speed),
             "tx" => s!(self.tx),
             "rx" => s!(self.rx),
-            _ => None,
+            _ => {
+                eprintln!("Warning: unknown field: {}", name);
+                None
+            }
         }
     }
 
