@@ -3,20 +3,22 @@ pub mod config;
 pub mod gpu_status;
 pub mod nvidia;
 
+use std::{
+    io::{Write, stdout},
+    sync::OnceLock,
+    time::Duration,
+};
+
+use clap::Parser;
+use color_eyre::eyre::{Result, eyre};
+use nvml_wrapper::Nvml;
+use serde::Serialize;
+
 use crate::{
     amd::{AmdGpuStatus, AmdSysFS},
     config::structs::ConfigFile,
     gpu_status::{GpuStatus, GpuStatusData},
     nvidia::NvidiaGpuStatus,
-};
-use clap::Parser;
-use color_eyre::eyre::{Result, eyre};
-use nvml_wrapper::Nvml;
-use serde::Serialize;
-use std::{
-    io::{Write, stdout},
-    sync::OnceLock,
-    time::Duration,
 };
 
 pub enum Instance {

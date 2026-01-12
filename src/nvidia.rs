@@ -51,7 +51,8 @@ fn is_powered_on(bus_id: &str) -> Result<bool> {
 /// Returns `true` if there is any process currently using GPU 0.
 ///
 /// This function checks whether `/dev/nvidia0` is opened by any process
-/// other than the current one without waking up the GPU by scanning `/proc/*/fd`.
+/// other than the current one without waking up the GPU by scanning
+/// `/proc/*/fd`.
 ///
 /// # Note
 ///
@@ -150,15 +151,16 @@ impl GpuStatus for NvidiaGpuStatus<'_> {
         //
         // 1. Presence check (doesn't wake GPU):
         //    - Uses sysfs to check PCI-level power status (`is_powered_on`).
-        //    - Scans /proc via procfs to see if any process is currently using
-        //      the GPU device node
+        //    - Scans /proc via procfs to see if any process is currently using the GPU
+        //      device node
         //    This stage does not invoke NVML and therefore does not wake the GPU.
         //
         // 2. NVML collection (wake GPU):
         //    - Only executed if the GPU is powered on and has running processes.
         //    - Collects utilization rates, memory info, temperature, PCIe throughput,
         //      encoder/decoder usage, fan speed, power draw, etc.
-        //    This stage gives full metrics but is gated to minimize unnecessary GPU wake-ups.
+        //    This stage gives full metrics but is gated to minimize unnecessary GPU
+        // wake-ups.
         //
         // By structuring the polling this way, we maintain power-awareness while
         // still collecting full GPU metrics when the device is actively in use.

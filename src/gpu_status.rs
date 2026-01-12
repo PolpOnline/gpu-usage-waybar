@@ -1,9 +1,11 @@
-use crate::config::structs::ConfigFile;
+use std::{borrow::Cow, sync::OnceLock};
+
 use amdgpu_sysfs::gpu_handle::PerformanceLevel;
 use color_eyre::eyre::Result;
 use regex::Regex;
-use std::{borrow::Cow, sync::OnceLock};
 use strum::Display;
+
+use crate::config::structs::ConfigFile;
 
 static RE: OnceLock<Regex> = OnceLock::new();
 
