@@ -3,7 +3,7 @@ name: Rust
 on: [push, pull_request]
 
 jobs:
-  check_and_build:
+  check_build_and_test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -12,6 +12,8 @@ jobs:
         run: cargo clippy -- -D warnings
       - name: Build
         run: cargo build --release
+      - name: Run Tests
+        run: cargo test
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
