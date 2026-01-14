@@ -46,7 +46,55 @@ Add the custom module to the config, use
 }
 ```
 
-The crate also has a configuration file (located at `$XDG_CONFIG_HOME/gpu-usage-waybar/config.toml`)
+# Configuration
+
+The crate has a configuration file (located at `$XDG_CONFIG_HOME/gpu_usage_waybar.toml`)
 which can be used to set various options about the output.
+
+You can specify the output format in the config file as:
+
+```toml
+[text]
+format = "{gpu_utilization}%|{mem_utilization}%"
+
+[tooltip]
+format = """GPU: {gpu_utilization}%
+MEM USED: {mem_used}/{mem_total} MiB ({mem_utilization}%)
+MEM R/W: {mem_rw}%
+DEC: {decoder_utilization}%
+ENC: {encoder_utilization}%
+TEMP: {temperature}°C
+POWER: {power}W
+PSTATE: {p_state}
+PLEVEL: {p_level}
+FAN SPEED: {fan_speed}%
+TX: {tx} MiB/s
+RX: {rx} MiB/s"""
+```
+The text format defaults to `"{gpu_utilization}%|{mem_utilization}%"`. 
+The tooltip defaults to all fields that are supported by your GPU if not customized. 
+
+You can also set the output format with CLI args using `--text-format` and `--tooltip-format`.
+<details>
+<summary>Available fields</summary>
+
+| Field name | Description | Unit | AMD | NVIDIA |
+| :--- | :--- | :--- | :---: | :---: |
+| `gpu_utilization` | GPU utilization | % | ✅ | ✅ |
+| `mem_used` | Memory used in MiB | MiB | ✅ | ✅ |
+| `mem_total` | Total memory in MiB | MiB | ✅ | ✅ |
+| `mem_rw` | Memory data bus utilization | % | ❌ | ✅ |
+| `mem_utilization` | Memory utilization | % | ✅ | ✅ |
+| `decoder_utilization` | Decoder utilization | % | ❌ | ✅ |
+| `encoder_utilization` | Encoder utilization | % | ❌ | ✅ |
+| `temperature` | Temperature in degrees Celsius | °C | ✅ | ✅ |
+| `power` | Power usage in Watts | W | ✅ | ✅ |
+| `p_state` | (NVIDIA) Performance state | NVIDIA performance state | ❌ | ✅ |
+| `p_level` | (AMD) Performance Level | AMD performance level | ✅ | ❌ |
+| `fan_speed` | Fan speed in percent | % | ✅ | ✅ |
+| `tx` | PCIe TX throughput in MiB/s | MiB/s | ❌ | ✅ |
+| `rx` | PCIe RX throughput in MiB/s | MiB/s | ❌ | ✅ |
+
+</details>
 
 Bear in mind that args passed to the command line will override the configuration file

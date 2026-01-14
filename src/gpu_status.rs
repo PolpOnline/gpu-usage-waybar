@@ -1,8 +1,17 @@
+use std::{borrow::Cow, sync::OnceLock};
+
 use amdgpu_sysfs::gpu_handle::PerformanceLevel;
 use color_eyre::eyre::Result;
+use regex::Regex;
 use strum::Display;
 
 use crate::config::structs::ConfigFile;
+
+static RE: OnceLock<Regex> = OnceLock::new();
+
+pub fn get_regex() -> &'static Regex {
+    RE.get_or_init(|| Regex::new(r"\{([^}]+)}").unwrap())
+}
 
 #[derive(Default)]
 pub struct GpuStatusData {
@@ -38,32 +47,6 @@ pub struct GpuStatusData {
     pub(crate) rx: Option<f64>,
 }
 
-/// Formats the value if it is `Some`, appends it to the `fmt` string,
-/// and pushes it to the `target` string.
-macro_rules! conditional_append {
-    ($target:ident, $fmt:expr, $value:expr) => {
-        if let Some(value) = $value {
-            $target.push_str(&format!($fmt, value));
-        }
-    };
-
-    // Same but with two values
-    ($target:ident, $fmt:expr, $src1:expr, $src2:expr) => {
-        if let (Some(value1), Some(value2)) = ($src1, $src2) {
-            $target.push_str(&format!($fmt, value1, value2));
-        }
-    };
-
-    // Same but with four values
-    ($target:ident, $fmt:expr, $src1:expr, $src2:expr, $src3:expr, $src4:expr) => {
-        if let (Some(value1), Some(value2), Some(value3), Some(value4)) =
-            ($src1, $src2, $src3, $src4)
-        {
-            $target.push_str(&format!($fmt, value1, value2, value3, value4));
-        }
-    };
-}
-
 impl GpuStatusData {
     pub(crate) fn compute_mem_usage(&self) -> Option<u8> {
         if let (Some(mem_used), Some(mem_total)) = (self.mem_used, self.mem_total) {
@@ -82,18 +65,11 @@ impl GpuStatusData {
             return "Idle".to_string();
         }
 
-        let mut text = String::new();
-
-        conditional_append!(text, "{}%", self.gpu_utilization);
-
-        if config.text.show_memory {
-            conditional_append!(text, "|{}%", self.compute_mem_usage());
-        }
-
-        text
+        let format = &config.text.format;
+        self.format_with_fields(format)
     }
 
-    pub fn get_tooltip(&self, config_file: &ConfigFile) -> String {
+    pub fn get_tooltip(&self, config: &ConfigFile) -> String {
         if !self.powered_on {
             return "GPU powered off".to_string();
         }
@@ -102,61 +78,61 @@ impl GpuStatusData {
             return "GPU idle".to_string();
         }
 
-        let config = &config_file.tooltip;
+        let format = &config.tooltip.format();
+        self.format_with_fields(format)
+    }
 
-        let mut tooltip = String::new();
+    pub fn get_field(&self, name: &str) -> Option<String> {
+        // Local macro to reduce boilerplate
+        macro_rules! s {
+            ($val:expr) => {
+                $val.map(|v| v.to_string())
+            };
+        }
 
-        conditional_append!(
-            tooltip,
-            "{}: {}%\n",
-            config.gpu_utilization.get_text(),
-            self.gpu_utilization
-        );
-        conditional_append!(
-            tooltip,
-            "{}: {}/{} MiB ({}%)\n",
-            config.mem_used.get_text(),
-            self.mem_used.map(|v| v.round() as u64),
-            self.mem_total.map(|v| v.round() as u64),
-            self.compute_mem_usage()
-        );
-        conditional_append!(tooltip, "{}: {}%\n", config.mem_rw.get_text(), self.mem_rw);
-        conditional_append!(
-            tooltip,
-            "{}: {}%\n",
-            config.decoder_utilization.get_text(),
-            self.decoder_utilization
-        );
-        conditional_append!(
-            tooltip,
-            "{}: {}%\n",
-            config.encoder_utilization.get_text(),
-            self.encoder_utilization
-        );
-        conditional_append!(
-            tooltip,
-            "{}: {}°C\n",
-            config.temperature.get_text(),
-            self.temperature
-        );
-        conditional_append!(tooltip, "{}: {}W\n", config.power.get_text(), self.power);
-        conditional_append!(tooltip, "{}: {}\n", config.p_state.get_text(), self.p_state);
-        conditional_append!(tooltip, "{}: {}\n", config.p_level.get_text(), self.p_level);
-        conditional_append!(
-            tooltip,
-            "{}: {}%\n",
-            config.fan_speed.get_text(),
-            self.fan_speed
-        );
-        conditional_append!(tooltip, "{}: {} MiB/s\n", config.tx.get_text(), self.tx);
-        conditional_append!(tooltip, "{}: {} MiB/s\n", config.rx.get_text(), self.rx);
+        match name {
+            "gpu_utilization" => s!(self.gpu_utilization),
+            "mem_used" => s!(self.mem_used.map(|v| v.round() as u64)),
+            "mem_total" => s!(self.mem_total.map(|v| v.round() as u64)),
+            "mem_rw" => s!(self.mem_rw),
+            "mem_utilization" => s!(self.compute_mem_usage()),
+            "decoder_utilization" => s!(self.decoder_utilization),
+            "encoder_utilization" => s!(self.encoder_utilization),
+            "temperature" => s!(self.temperature),
+            "power" => s!(self.power),
+            "p_state" => s!(self.p_state),
+            "p_level" => s!(self.p_level),
+            "fan_speed" => s!(self.fan_speed),
+            "tx" => s!(self.tx),
+            "rx" => s!(self.rx),
+            _ => {
+                eprintln!("Warning: unknown field: {}", name);
+                None
+            }
+        }
+    }
 
-        tooltip.trim().to_string()
+    fn format_with_fields(&self, s: &str) -> String {
+        // Regex to match patterns like {variable_name}
+        let re = get_regex();
+
+        re.replace_all(s, |caps: &regex::Captures| {
+            let key = &caps[1];
+            self.get_field(key)
+                .map(Cow::Owned)
+                .unwrap_or(Cow::Borrowed("N/A"))
+        })
+        .into_owned()
     }
 }
 
 pub trait GpuStatus {
     fn compute(&self) -> Result<GpuStatusData>;
+
+    /// Compute [GpuStatusData] regardless of idle or power state.
+    fn compute_force(&self) -> Result<GpuStatusData> {
+        self.compute()
+    }
 }
 
 #[derive(Default, Display, Copy, Clone)]
