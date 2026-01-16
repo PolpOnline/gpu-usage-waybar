@@ -130,8 +130,8 @@ mod tests {
                 r"PSTATE: {p_state}
 PLEVEL: {p_level}
 FAN SPEED: {fan_speed}%
-TX: {tx} MiB/s
-RX: {rx} MiB/s"
+TX: {tx_MiB} MiB/s
+RX: {rx_MiB} MiB/s"
                     .to_string(),
             ),
         };
@@ -141,8 +141,8 @@ RX: {rx} MiB/s"
         assert_eq!(
             config.format.unwrap(),
             r"PSTATE: {p_state}
-TX: {tx} MiB/s
-RX: {rx} MiB/s"
+TX: {tx_MiB} MiB/s
+RX: {rx_MiB} MiB/s"
         );
     }
 

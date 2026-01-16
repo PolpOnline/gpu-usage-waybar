@@ -130,7 +130,6 @@ impl NvidiaGpuStatus<'_> {
                                                                            * from mW */
             p_state: device.performance_state().ok().map(|p| p.into()),
             fan_speed: device.fan_speed(0u32).ok().map(|f| f as u8),
-            // TODO: Checkout tx/rx unit. The original unit is weird...
             tx: device
                 .pcie_throughput(PcieUtilCounter::Send)
                 .ok()
