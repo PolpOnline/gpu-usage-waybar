@@ -116,6 +116,10 @@ impl GpuStatusData {
         }
     }
 
+    /// Returns an [AdjustedByte] in the specified unit.
+    /// The unit is determined by the template suffix.
+    /// For example, it adjusts to `MiB` for the template `{mem_used_MiB}`.
+    ///
     /// Returns `None` if the name prefix does not match any field, or if
     /// the unit cannot be parsed.
     fn format_byte_field(&self, name: &str) -> Option<AdjustedByte> {
