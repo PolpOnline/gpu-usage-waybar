@@ -38,14 +38,8 @@ impl GpuStatus for AmdGpuStatus {
             has_running_processes: true, /* TODO: temporarily set to true until AMD GPU process
                                           * detection is implemented */
             gpu_utilization: gpu_handle.get_busy_percent().ok(),
-            mem_used: gpu_handle
-                .get_used_vram()
-                .ok()
-                .map(|v| v as f64 / 1024f64 / 1024f64), // convert to MiB from B
-            mem_total: gpu_handle
-                .get_total_vram()
-                .ok()
-                .map(|v| v as f64 / 1024f64 / 1024f64),
+            mem_used: gpu_handle.get_used_vram().ok().map(|v| v.into()),
+            mem_total: gpu_handle.get_total_vram().ok().map(|v| v.into()),
             temperature: temp.map(|v| v.round() as u8),
             power: hw_mon.get_power_input().ok(),
             p_level: gpu_handle.get_power_force_performance_level().ok(),

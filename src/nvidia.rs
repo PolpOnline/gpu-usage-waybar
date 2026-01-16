@@ -1,5 +1,6 @@
 use std::fs;
 
+use byte_unit::{Byte, Unit};
 use color_eyre::eyre::Result;
 use nvml_wrapper::{
     Device, Nvml,
@@ -109,11 +110,9 @@ impl NvidiaGpuStatus<'_> {
         GpuStatusData {
             powered_on: true,
             has_running_processes: true,
-            gpu_utilization: utilization_rates.clone().map(|u| u.gpu as u8),
-            mem_used: memory_info_in_bytes
-                .clone()
-                .map(|m| m.used as f64 / 1024f64 / 1024f64), // convert to MiB from B
-            mem_total: memory_info_in_bytes.map(|m| m.total as f64 / 1024f64 / 1024f64),
+            gpu_utilization: utilization_rates.as_ref().map(|u| u.gpu as u8),
+            mem_used: memory_info_in_bytes.as_ref().map(|m| m.used.into()),
+            mem_total: memory_info_in_bytes.as_ref().map(|m| m.total.into()),
             mem_rw: utilization_rates.map(|u| u.memory as u8),
             decoder_utilization: device
                 .decoder_utilization()
@@ -131,14 +130,15 @@ impl NvidiaGpuStatus<'_> {
                                                                            * from mW */
             p_state: device.performance_state().ok().map(|p| p.into()),
             fan_speed: device.fan_speed(0u32).ok().map(|f| f as u8),
+            // TODO: Checkout tx/rx unit. The original unit is weird...
             tx: device
                 .pcie_throughput(PcieUtilCounter::Send)
                 .ok()
-                .map(|t| t as f64 / 1000f64), // convert to MiB/s from KiB/s
+                .map(|t| Byte::from_u64_with_unit(t as u64, Unit::KB).unwrap()),
             rx: device
                 .pcie_throughput(PcieUtilCounter::Receive)
                 .ok()
-                .map(|t| t as f64 / 1000f64),
+                .map(|t| Byte::from_u64_with_unit(t as u64, Unit::KB).unwrap()),
             ..Default::default()
         }
     }

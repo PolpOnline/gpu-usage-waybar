@@ -111,6 +111,7 @@ mod tests {
         config::structs::TooltipConfig,
         gpu_status::{GpuStatusData, PState},
     };
+    use byte_unit::{Byte, Unit};
 
     /// Test that lines with unavailable fields are dropped.
     #[test]
@@ -119,8 +120,8 @@ mod tests {
             p_state: Some(PState::P0),
             p_level: None,
             fan_speed: None,
-            tx: Some(5.2),
-            rx: Some(6.7),
+            tx: Byte::from_u64_with_unit(5, Unit::MiB),
+            rx: Byte::from_u64_with_unit(6, Unit::MiB),
             ..Default::default()
         };
 
@@ -151,7 +152,7 @@ RX: {rx} MiB/s"
     fn test_retain_lines_with_multiple_placeholders() {
         let data = GpuStatusData {
             gpu_utilization: Some(50),
-            mem_used: Some(50.0),
+            mem_used: Byte::from_u64_with_unit(50, Unit::MiB),
             mem_total: None, // This should cause the line to be dropped
             p_state: Some(PState::P0),
             p_level: None, // This should cause the line to be dropped
