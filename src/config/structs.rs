@@ -92,7 +92,7 @@ RX: {rx} MiB/s";
             // Check if ANY placeholder in the line has no value
             let has_unavailable = re
                 .captures_iter(line)
-                .any(|caps| data.get_field(&caps[1]).is_none());
+                .any(|caps| data.is_field_unavailable(&caps[1]));
 
             if has_unavailable {
                 continue;
