@@ -1,16 +1,14 @@
 pub mod structs;
 
-use std::{path::PathBuf, sync::OnceLock};
+use std::path::PathBuf;
 
 use color_eyre::{Result, eyre::eyre};
 use etcetera::{BaseStrategy, base_strategy::Xdg};
 
 use crate::config::structs::ConfigFile;
 
-pub static XDG_DIR: OnceLock<Xdg> = OnceLock::new();
-
-fn get_xdg_dir() -> &'static Xdg {
-    XDG_DIR.get_or_init(|| Xdg::new().expect("Failed to get XDG directory"))
+fn get_xdg_dir() -> Xdg {
+    Xdg::new().expect("Failed to get XDG directory")
 }
 
 fn get_config_dir() -> PathBuf {
