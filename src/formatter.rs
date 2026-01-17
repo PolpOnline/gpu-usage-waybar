@@ -56,7 +56,7 @@ fn parse(format: &str) -> Vec<Chunk> {
         // variable
         let field = Field::from_str(field_str).ok();
         if field.is_none() {
-            eprintln!("Warning: unknown field: {format}");
+            eprintln!("Warning: unknown field: {field_str}");
         }
 
         chunks.push(Chunk::Variable(field));
