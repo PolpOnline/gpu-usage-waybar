@@ -1,18 +1,11 @@
+use std::borrow::Cow;
 use std::str::FromStr;
-use std::{borrow::Cow, sync::OnceLock};
 
 use amdgpu_sysfs::gpu_handle::PerformanceLevel;
 use color_eyre::eyre::Result;
-use regex::Regex;
 use strum::Display;
 
 use crate::formatter::{Chunk, Field, State};
-
-static RE: OnceLock<Regex> = OnceLock::new();
-
-pub fn get_regex() -> &'static Regex {
-    RE.get_or_init(|| Regex::new(r"\{([^}]+)}").unwrap())
-}
 
 #[derive(Default)]
 pub struct GpuStatusData {

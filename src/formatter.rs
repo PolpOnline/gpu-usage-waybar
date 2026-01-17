@@ -41,8 +41,12 @@ impl State {
     }
 }
 
+pub fn get_regex() -> Regex {
+    Regex::new(r"\{([^}]+)}").unwrap()
+}
+
 fn parse(format: &str) -> Vec<Chunk> {
-    let re = Regex::new(r"\{([^}]+)}").unwrap();
+    let re = get_regex();
     let mut chunks = Vec::new();
     let mut last_end = 0;
 
