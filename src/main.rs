@@ -106,9 +106,6 @@ fn main() -> Result<()> {
 
     let update_interval = Duration::from_millis(config.general.interval);
 
-    std::mem::drop(config);
-    std::mem::drop(args);
-
     let mut stdout_lock = stdout().lock();
 
     loop {
