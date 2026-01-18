@@ -7,6 +7,7 @@ use nvml_wrapper::{
     enum_wrappers::device::{PcieUtilCounter, PerformanceState, TemperatureSensor},
 };
 use procfs::process::{FDTarget, all_processes};
+use uom::si::{f64::Power, power::milliwatt};
 
 use crate::gpu_status::{GpuStatus, GpuStatusData, PState, celsius};
 
@@ -126,8 +127,10 @@ impl NvidiaGpuStatus<'_> {
                 .temperature(TemperatureSensor::Gpu)
                 .ok()
                 .map(|t| celsius(t as f32)),
-            power: device.power_usage().ok().map(|p| p as f64 / 1000f64), /* convert to W
-                                                                           * from mW */
+            power: device
+                .power_usage()
+                .ok()
+                .map(|p| Power::new::<milliwatt>(p as f64)),
             p_state: device.performance_state().ok().map(|p| p.into()),
             fan_speed: device.fan_speed(0u32).ok().map(|f| f as u8),
             tx: device

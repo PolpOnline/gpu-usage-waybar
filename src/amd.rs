@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use amdgpu_sysfs::gpu_handle::GpuHandle;
 use color_eyre::eyre::{Result, eyre};
 use regex::Regex;
+use uom::si::{f64::Power, power::watt};
 
 use crate::gpu_status::{GpuStatus, GpuStatusData, celsius};
 
@@ -41,7 +42,7 @@ impl GpuStatus for AmdGpuStatus {
             mem_used: gpu_handle.get_used_vram().ok().map(|v| v.into()),
             mem_total: gpu_handle.get_total_vram().ok().map(|v| v.into()),
             temperature: temp.map(celsius),
-            power: hw_mon.get_power_input().ok(),
+            power: hw_mon.get_power_input().ok().map(Power::new::<watt>),
             p_level: gpu_handle.get_power_force_performance_level().ok(),
             fan_speed: hw_mon.get_fan_current().ok().map(|v| v as u8),
             ..Default::default()

@@ -5,7 +5,11 @@ use byte_unit::{AdjustedByte, Byte, Unit, UnitParseError};
 use color_eyre::eyre::Result;
 use regex::Regex;
 use strum::Display;
-use uom::si::thermodynamic_temperature::{degree_celsius, degree_fahrenheit, kelvin};
+use uom::si::{
+    f64::Power,
+    power::{kilowatt, watt},
+    thermodynamic_temperature::{degree_celsius, degree_fahrenheit, kelvin},
+};
 
 use crate::config::structs::ConfigFile;
 
@@ -41,8 +45,8 @@ pub struct GpuStatusData {
     pub(crate) encoder_utilization: Option<u8>,
     /// Temperature.
     pub(crate) temperature: Option<Temperature>,
-    /// Power usage in Watts.
-    pub(crate) power: Option<f64>,
+    /// Power usage.
+    pub(crate) power: Option<Power>,
     /// (NVIDIA) Performance state.
     pub(crate) p_state: Option<PState>,
     /// (AMD) Performance Level
@@ -114,7 +118,8 @@ impl GpuStatusData {
             "temperature_c" => r!(self.temperature, degree_celsius),
             "temperature_f" => r!(self.temperature, degree_fahrenheit),
             "temperature_k" => r!(self.temperature, kelvin),
-            "power" => s!(self.power),
+            "power_kw" => s!(self.power.map(|p| p.get::<kilowatt>())),
+            "power_w" => s!(self.power.map(|p| p.get::<watt>())),
             "p_state" => s!(self.p_state),
             "p_level" => s!(self.p_level),
             "fan_speed" => s!(self.fan_speed),
