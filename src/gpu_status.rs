@@ -5,13 +5,20 @@ use byte_unit::{AdjustedByte, Byte, Unit, UnitParseError};
 use color_eyre::eyre::Result;
 use regex::Regex;
 use strum::Display;
+use uom::si::thermodynamic_temperature::{degree_celsius, degree_fahrenheit, kelvin};
 
 use crate::config::structs::ConfigFile;
+
+pub type Temperature = uom::si::f32::ThermodynamicTemperature;
 
 static RE: OnceLock<Regex> = OnceLock::new();
 
 pub fn get_regex() -> &'static Regex {
     RE.get_or_init(|| Regex::new(r"\{([^}]+)}").unwrap())
+}
+
+pub fn celsius(v: f32) -> Temperature {
+    Temperature::new::<degree_celsius>(v)
 }
 
 #[derive(Default)]
@@ -32,8 +39,8 @@ pub struct GpuStatusData {
     pub(crate) decoder_utilization: Option<u8>,
     /// Encoder utilization in percent.
     pub(crate) encoder_utilization: Option<u8>,
-    /// Temperature in degrees Celsius.
-    pub(crate) temperature: Option<u8>,
+    /// Temperature.
+    pub(crate) temperature: Option<Temperature>,
     /// Power usage in Watts.
     pub(crate) power: Option<f64>,
     /// (NVIDIA) Performance state.
@@ -85,10 +92,16 @@ impl GpuStatusData {
     }
 
     pub fn get_field(&self, name: &str) -> Option<String> {
-        // Local macro to reduce boilerplate
+        // Local macros to reduce boilerplate
         macro_rules! s {
             ($val:expr) => {
                 $val.map(|v| v.to_string())
+            };
+        }
+
+        macro_rules! r {
+            ($val:expr, $unit:ident) => {
+                $val.map(|t| t.get::<$unit>().round().to_string())
             };
         }
 
@@ -98,7 +111,9 @@ impl GpuStatusData {
             "mem_utilization" => s!(self.compute_mem_usage()),
             "decoder_utilization" => s!(self.decoder_utilization),
             "encoder_utilization" => s!(self.encoder_utilization),
-            "temperature" => s!(self.temperature),
+            "temperature_c" => r!(self.temperature, degree_celsius),
+            "temperature_f" => r!(self.temperature, degree_fahrenheit),
+            "temperature_k" => r!(self.temperature, kelvin),
             "power" => s!(self.power),
             "p_state" => s!(self.p_state),
             "p_level" => s!(self.p_level),

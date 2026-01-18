@@ -4,7 +4,7 @@ use amdgpu_sysfs::gpu_handle::GpuHandle;
 use color_eyre::eyre::{Result, eyre};
 use regex::Regex;
 
-use crate::gpu_status::{GpuStatus, GpuStatusData};
+use crate::gpu_status::{GpuStatus, GpuStatusData, celsius};
 
 pub struct AmdGpuStatus {
     amd_sys_fs: &'static AmdSysFS,
@@ -40,7 +40,7 @@ impl GpuStatus for AmdGpuStatus {
             gpu_utilization: gpu_handle.get_busy_percent().ok(),
             mem_used: gpu_handle.get_used_vram().ok().map(|v| v.into()),
             mem_total: gpu_handle.get_total_vram().ok().map(|v| v.into()),
-            temperature: temp.map(|v| v.round() as u8),
+            temperature: temp.map(celsius),
             power: hw_mon.get_power_input().ok(),
             p_level: gpu_handle.get_power_force_performance_level().ok(),
             fan_speed: hw_mon.get_fan_current().ok().map(|v| v as u8),

@@ -8,7 +8,7 @@ use nvml_wrapper::{
 };
 use procfs::process::{FDTarget, all_processes};
 
-use crate::gpu_status::{GpuStatus, GpuStatusData, PState};
+use crate::gpu_status::{GpuStatus, GpuStatusData, PState, celsius};
 
 pub struct NvidiaGpuStatus<'a> {
     device: Device<'a>,
@@ -125,7 +125,7 @@ impl NvidiaGpuStatus<'_> {
             temperature: device
                 .temperature(TemperatureSensor::Gpu)
                 .ok()
-                .map(|t| t as u8),
+                .map(|t| celsius(t as f32)),
             power: device.power_usage().ok().map(|p| p as f64 / 1000f64), /* convert to W
                                                                            * from mW */
             p_state: device.performance_state().ok().map(|p| p.into()),
