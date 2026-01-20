@@ -72,11 +72,11 @@ TX: {tx:MiB} MiB/s
 RX: {rx:MiB} MiB/s"""
 ```
 
- - You can specify a unit using `:unit`,
-   e.g., `temperature:c` for Celsius or `temperature:f` for Fahrenheit.
-   Available units are listed in the table below.
- - The text format defaults to `"{gpu_utilization}%|{mem_utilization}%"`. 
- - The tooltip defaults to all fields that are supported by your GPU if not customized. 
+- You can specify a unit using `:unit`,
+  e.g., `temperature:c` for Celsius or `temperature:f` for Fahrenheit.
+  Available units are listed in the table below.
+- The text format defaults to `"{gpu_utilization}%|{mem_utilization}%"`. 
+- The tooltip defaults to all fields that are supported by your GPU if not customized. 
 
 You can also set the output format with CLI args using `--text-format` and `--tooltip-format`.
 <details>
