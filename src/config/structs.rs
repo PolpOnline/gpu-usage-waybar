@@ -2,10 +2,7 @@ use color_eyre::Result;
 use serde::Deserialize;
 use smart_default::SmartDefault;
 
-use crate::{
-    Args,
-    gpu_status::{self, GpuStatusData},
-};
+use crate::{Args, formatter, gpu_status::GpuStatusData};
 
 #[derive(Default, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -86,13 +83,13 @@ RX: {rx} MiB/s";
     /// in `data`, that entire line is removed from the format.
     pub fn retain_lines_with_values(&mut self, data: &GpuStatusData) {
         let mut result = String::new();
-        let re = gpu_status::get_regex();
+        let re = formatter::get_regex();
 
         for line in self.format().split_inclusive('\n') {
             // Check if ANY placeholder in the line has no value
             let has_unavailable = re
                 .captures_iter(line)
-                .any(|caps| data.get_field(&caps[1]).is_none());
+                .any(|caps| data.is_field_unavailable(&caps[1]));
 
             if has_unavailable {
                 continue;

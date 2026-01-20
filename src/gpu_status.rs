@@ -1,17 +1,11 @@
-use std::{borrow::Cow, sync::OnceLock};
+use std::borrow::Cow;
+use std::str::FromStr;
 
 use amdgpu_sysfs::gpu_handle::PerformanceLevel;
 use color_eyre::eyre::Result;
-use regex::Regex;
 use strum::Display;
 
-use crate::config::structs::ConfigFile;
-
-static RE: OnceLock<Regex> = OnceLock::new();
-
-pub fn get_regex() -> &'static Regex {
-    RE.get_or_init(|| Regex::new(r"\{([^}]+)}").unwrap())
-}
+use crate::formatter::{Chunk, Field, State};
 
 #[derive(Default)]
 pub struct GpuStatusData {
@@ -56,33 +50,33 @@ impl GpuStatusData {
         }
     }
 
-    pub fn get_text(&self, config: &ConfigFile) -> String {
+    pub fn get_text<'a>(&self, state: &'a mut State) -> &'a str {
         if !self.powered_on {
-            return "Off".to_string();
+            return "Off";
         }
 
         if !self.has_running_processes {
-            return "Idle".to_string();
+            return "Idle";
         }
 
-        let format = &config.text.format;
-        self.format_with_fields(format)
+        self.assemble(state);
+        &state.buffer
     }
 
-    pub fn get_tooltip(&self, config: &ConfigFile) -> String {
+    pub fn get_tooltip<'a>(&self, state: &'a mut State) -> &'a str {
         if !self.powered_on {
-            return "GPU powered off".to_string();
+            return "GPU powered off";
         }
 
         if !self.has_running_processes {
-            return "GPU idle".to_string();
+            return "GPU idle";
         }
 
-        let format = &config.tooltip.format();
-        self.format_with_fields(format)
+        self.assemble(state);
+        &state.buffer
     }
 
-    pub fn get_field(&self, name: &str) -> Option<String> {
+    pub fn get_field_to_string(&self, field: Field) -> Option<String> {
         // Local macro to reduce boilerplate
         macro_rules! s {
             ($val:expr) => {
@@ -90,39 +84,47 @@ impl GpuStatusData {
             };
         }
 
-        match name {
-            "gpu_utilization" => s!(self.gpu_utilization),
-            "mem_used" => s!(self.mem_used.map(|v| v.round() as u64)),
-            "mem_total" => s!(self.mem_total.map(|v| v.round() as u64)),
-            "mem_rw" => s!(self.mem_rw),
-            "mem_utilization" => s!(self.compute_mem_usage()),
-            "decoder_utilization" => s!(self.decoder_utilization),
-            "encoder_utilization" => s!(self.encoder_utilization),
-            "temperature" => s!(self.temperature),
-            "power" => s!(self.power),
-            "p_state" => s!(self.p_state),
-            "p_level" => s!(self.p_level),
-            "fan_speed" => s!(self.fan_speed),
-            "tx" => s!(self.tx),
-            "rx" => s!(self.rx),
-            _ => {
-                eprintln!("Warning: unknown field: {}", name);
-                None
-            }
+        match field {
+            Field::GpuUtilization => s!(self.gpu_utilization),
+            Field::MemUsed => s!(self.mem_used.map(|v| v.round() as u64)),
+            Field::MemTotal => s!(self.mem_total.map(|v| v.round() as u64)),
+            Field::MemRw => s!(self.mem_rw),
+            Field::MemUtilization => s!(self.compute_mem_usage()),
+            Field::DecoderUtilization => s!(self.decoder_utilization),
+            Field::EncoderUtilization => s!(self.encoder_utilization),
+            Field::Temperature => s!(self.temperature),
+            Field::Power => s!(self.power),
+            Field::PState => s!(self.p_state),
+            Field::PLevel => s!(self.p_level),
+            Field::FanSpeed => s!(self.fan_speed),
+            Field::Tx => s!(self.tx),
+            Field::Rx => s!(self.rx),
         }
     }
 
-    fn format_with_fields(&self, s: &str) -> String {
-        // Regex to match patterns like {variable_name}
-        let re = get_regex();
+    pub fn is_field_unavailable(&self, name: &str) -> bool {
+        Field::from_str(name)
+            .ok()
+            .and_then(|f| self.get_field_to_string(f))
+            .is_none()
+    }
 
-        re.replace_all(s, |caps: &regex::Captures| {
-            let key = &caps[1];
-            self.get_field(key)
-                .map(Cow::Owned)
-                .unwrap_or(Cow::Borrowed("N/A"))
-        })
-        .into_owned()
+    fn assemble(&self, state: &mut State) {
+        state.buffer.clear();
+
+        for chunk in &state.chunks {
+            match chunk {
+                Chunk::Static(s) => state.buffer.push_str(s),
+                Chunk::Variable(field) => {
+                    let s = field
+                        .and_then(|f| self.get_field_to_string(f))
+                        .map(Cow::Owned)
+                        .unwrap_or(Cow::Borrowed("N/A"));
+
+                    state.buffer.push_str(&s);
+                }
+            }
+        }
     }
 }
 
