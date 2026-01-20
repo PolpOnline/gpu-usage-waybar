@@ -21,10 +21,6 @@ pub fn get_regex() -> &'static Regex {
     RE.get_or_init(|| Regex::new(r"\{([^}]+)}").unwrap())
 }
 
-pub fn celsius(v: f32) -> Temperature {
-    Temperature::new::<degree_celsius>(v)
-}
-
 #[derive(Default)]
 pub struct GpuStatusData {
     /// Whether any process is using GPU.
