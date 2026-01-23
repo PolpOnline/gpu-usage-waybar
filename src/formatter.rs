@@ -5,6 +5,9 @@ use std::fmt::Display;
 use std::{fmt::Debug, str::FromStr};
 use strum::{Display, EnumString};
 use uom::si::f32::Power;
+use uom::si::information::{
+    gibibit, gigabit, gigabyte, kibibit, kilobit, kilobyte, mebibit, megabit, megabyte,
+};
 use uom::si::power::{kilowatt, watt};
 use uom::si::thermodynamic_temperature::{degree_celsius, degree_fahrenheit, kelvin};
 use uom::si::{
@@ -106,6 +109,15 @@ pub enum MemUnit {
     KiB,
     MiB,
     GiB,
+    KB,
+    MB,
+    GB,
+    Kib,
+    Mib,
+    Gib,
+    Kb,
+    Mb,
+    Gb,
 }
 
 impl Unit for MemUnit {
@@ -116,6 +128,15 @@ impl Unit for MemUnit {
             MemUnit::KiB => v.get::<kibibyte>(),
             MemUnit::MiB => v.get::<mebibyte>(),
             MemUnit::GiB => v.get::<gibibyte>(),
+            MemUnit::KB => v.get::<kilobyte>(),
+            MemUnit::MB => v.get::<megabyte>(),
+            MemUnit::GB => v.get::<gigabyte>(),
+            MemUnit::Kib => v.get::<kibibit>(),
+            MemUnit::Mib => v.get::<mebibit>(),
+            MemUnit::Gib => v.get::<gibibit>(),
+            MemUnit::Kb => v.get::<kilobit>(),
+            MemUnit::Mb => v.get::<megabit>(),
+            MemUnit::Gb => v.get::<gigabit>(),
         }
     }
 }
