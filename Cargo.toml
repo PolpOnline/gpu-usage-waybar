@@ -1,5 +1,6 @@
 [package]
 name = "gpu-usage-waybar"
+rust-version = "1.91.1"
 authors = ["PolpOnline"]
 version = "0.1.25"
 edition = "2024"
