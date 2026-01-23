@@ -111,21 +111,21 @@ impl GpuStatusData {
         }
     }
 
-    fn get_simple_field_display(&self, field: SimpleField) -> Option<DisplayValue<'_>> {
+    fn get_simple_field_display(&self, field: SimpleField) -> Option<SimpleDisplay> {
         macro_rules! d {
             ($val:expr) => {
-                $val.as_ref().map(|v| DisplayValue::Ref(v as &dyn Display))
+                $val.map(SimpleDisplay::U8)
             };
         }
 
         match field {
             SimpleField::GpuUtilization => d!(self.gpu_utilization),
             SimpleField::MemRw => d!(self.mem_rw),
-            SimpleField::MemUtilization => self.compute_mem_usage().map(DisplayValue::Value),
+            SimpleField::MemUtilization => self.compute_mem_usage().map(SimpleDisplay::U8),
             SimpleField::DecoderUtilization => d!(self.decoder_utilization),
             SimpleField::EncoderUtilization => d!(self.encoder_utilization),
-            SimpleField::PState => d!(self.p_state),
-            SimpleField::PLevel => d!(self.p_level),
+            SimpleField::PState => self.p_state.map(SimpleDisplay::PState),
+            SimpleField::PLevel => self.p_level.map(SimpleDisplay::PLevel),
             SimpleField::FanSpeed => d!(self.fan_speed),
         }
     }
@@ -190,16 +190,18 @@ pub enum WriteFieldError {
     FieldIsNone,
 }
 
-enum DisplayValue<'a> {
-    Ref(&'a dyn Display),
-    Value(u8),
+enum SimpleDisplay {
+    U8(u8),
+    PState(PState),
+    PLevel(PerformanceLevel),
 }
 
-impl<'a> Display for DisplayValue<'a> {
+impl Display for SimpleDisplay {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DisplayValue::Ref(display) => write!(f, "{display}"),
-            DisplayValue::Value(v) => write!(f, "{v}"),
+            SimpleDisplay::U8(v) => write!(f, "{v}"),
+            SimpleDisplay::PState(v) => write!(f, "{v}"),
+            SimpleDisplay::PLevel(v) => write!(f, "{v}"),
         }
     }
 }
