@@ -21,7 +21,10 @@ pub struct State {
 }
 
 impl State {
-    // TODO: doc
+    /// Assembles `self.chunks` into `self.buffer` using the provided `data`.
+    ///
+    /// Writes `"N/A"` if a variable segment in `chunks` is [`Field::Unknown`],
+    /// or if the corresponding field in `data` is `None`.
     pub fn assemble(&mut self, data: &GpuStatusData) {
         self.buffer.clear();
 
@@ -30,6 +33,7 @@ impl State {
                 Chunk::Static(s) => self.buffer.push_str(s),
                 Chunk::Variable(field) => {
                     if matches!(
+                        // write_field() writes "N/A" if field is Field::Unknown.
                         data.write_field(*field, &mut self.buffer),
                         Err(WriteFieldError::FieldIsNone)
                     ) {

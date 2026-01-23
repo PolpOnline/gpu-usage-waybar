@@ -24,8 +24,16 @@ pub enum UnitParseError {
 }
 
 impl Display for UnitParseError {
-    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UnitParseError::NoColon => write!(
+                f,
+                "There's no colon found separating field name and unit name."
+            ),
+            UnitParseError::Memory(unit) => write!(f, "Invalid memory unit: `{unit}`"),
+            UnitParseError::Temperature(unit) => write!(f, "Invalid temperature unit: `{unit}`"),
+            UnitParseError::Power(unit) => write!(f, "Invalid power unit: `{unit}`"),
+        }
     }
 }
 

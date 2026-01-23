@@ -78,7 +78,10 @@ impl GpuStatusData {
         &state.buffer
     }
 
-    // TODO: doc
+    /// Write `field` value to `buffer`.
+    ///
+    /// - Writes "N/A" if `field` is [Field::Unknown].
+    /// - Returns [WriteFieldError::FieldIsNone] if `field` is `None`.
     pub fn write_field(&self, field: Field, buffer: &mut String) -> Result<(), WriteFieldError> {
         macro_rules! u {
             ($val:expr, $unit:expr) => {
