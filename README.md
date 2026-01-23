@@ -85,8 +85,8 @@ You can also set the output format with CLI args using `--text-format` and `--to
 | Field name | Description | Unit | AMD | NVIDIA |
 | :--- | :--- | :--- | :---: | :---: |
 | `gpu_utilization` | GPU utilization | % | ✅ | ✅ |
-| `mem_used` | Memory used in MiB | KiB, MiB, GiB, KB, MB, GB, ... | ✅ | ✅ |
-| `mem_total` | Total memory in MiB | KiB, MiB, GiB, KB, MB, GB, ... | ✅ | ✅ |
+| `mem_used` | Memory used in MiB | [Memory units](#memory-units) | ✅ | ✅ |
+| `mem_total` | Total memory in MiB | [Memory units](#memory-units) | ✅ | ✅ |
 | `mem_rw` | Memory data bus utilization | % | ❌ | ✅ |
 | `mem_utilization` | Memory utilization | % | ✅ | ✅ |
 | `decoder_utilization` | Decoder utilization | % | ❌ | ✅ |
@@ -96,9 +96,14 @@ You can also set the output format with CLI args using `--text-format` and `--to
 | `p_state` | (NVIDIA) Performance state | NVIDIA performance state | ❌ | ✅ |
 | `p_level` | (AMD) Performance Level | AMD performance level | ✅ | ❌ |
 | `fan_speed` | Fan speed in percent | % | ✅ | ✅ |
-| `tx` | PCIe TX throughput in MiB/s | KiB/s, MiB/s, GiB/s, KB/s, MB/s, GB/s, ... | ❌ | ✅ |
-| `rx` | PCIe RX throughput in MiB/s | KiB/s, MiB/s, GiB/s, KB/s, MB/s, GB/s, ... | ❌ | ✅ |
+| `tx` | PCIe TX throughput in MiB/s | [Memory units](#memory-units) | ❌ | ✅ |
+| `rx` | PCIe RX throughput in MiB/s | [Memory units](#memory-units) | ❌ | ✅ |
 
+</details>
+
+<details id="memory-units">
+<summary>Memory units</summary>
+Supported units: KiB, MiB, GiB, KB, MB, GB, Kib, Mib, Gib, Kb, Mb, Gb.
 </details>
 
 Bear in mind that args passed to the command line will override the configuration file
