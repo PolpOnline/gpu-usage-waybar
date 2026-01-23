@@ -1,13 +1,18 @@
 use std::fs;
 
-use byte_unit::{Byte, Unit};
 use color_eyre::eyre::Result;
 use nvml_wrapper::{
     Device, Nvml,
     enum_wrappers::device::{PcieUtilCounter, PerformanceState, TemperatureSensor},
 };
 use procfs::process::{FDTarget, all_processes};
-use uom::si::{f64::Power, power::milliwatt, thermodynamic_temperature::degree_celsius};
+use uom::si::{
+    f32::Information,
+    f32::Power,
+    information::{byte, kilobyte},
+    power::milliwatt,
+    thermodynamic_temperature::degree_celsius,
+};
 
 use crate::gpu_status::{GpuStatus, GpuStatusData, PState, Temperature};
 
@@ -112,8 +117,12 @@ impl NvidiaGpuStatus<'_> {
             powered_on: true,
             has_running_processes: true,
             gpu_utilization: utilization_rates.as_ref().map(|u| u.gpu as u8),
-            mem_used: memory_info_in_bytes.as_ref().map(|m| m.used.into()),
-            mem_total: memory_info_in_bytes.as_ref().map(|m| m.total.into()),
+            mem_used: memory_info_in_bytes
+                .as_ref()
+                .map(|m| Information::new::<byte>(m.used as f32)),
+            mem_total: memory_info_in_bytes
+                .as_ref()
+                .map(|m| Information::new::<byte>(m.total as f32)),
             mem_rw: utilization_rates.map(|u| u.memory as u8),
             decoder_utilization: device
                 .decoder_utilization()
@@ -130,17 +139,17 @@ impl NvidiaGpuStatus<'_> {
             power: device
                 .power_usage()
                 .ok()
-                .map(|p| Power::new::<milliwatt>(p as f64)),
+                .map(|p| Power::new::<milliwatt>(p as f32)),
             p_state: device.performance_state().ok().map(|p| p.into()),
             fan_speed: device.fan_speed(0u32).ok().map(|f| f as u8),
             tx: device
                 .pcie_throughput(PcieUtilCounter::Send)
                 .ok()
-                .map(|t| Byte::from_u64_with_unit(t as u64, Unit::KB).unwrap()),
+                .map(|t| Information::new::<kilobyte>(t as f32)),
             rx: device
                 .pcie_throughput(PcieUtilCounter::Receive)
                 .ok()
-                .map(|t| Byte::from_u64_with_unit(t as u64, Unit::KB).unwrap()),
+                .map(|t| Information::new::<kilobyte>(t as f32)),
             ..Default::default()
         }
     }

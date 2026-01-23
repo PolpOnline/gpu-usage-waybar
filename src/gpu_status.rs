@@ -1,25 +1,11 @@
-use std::{borrow::Cow, sync::OnceLock};
-
 use amdgpu_sysfs::gpu_handle::PerformanceLevel;
-use byte_unit::{AdjustedByte, Byte, Unit, UnitParseError};
 use color_eyre::eyre::Result;
-use regex::Regex;
 use strum::Display;
-use uom::si::{
-    f64::Power,
-    power::{kilowatt, watt},
-    thermodynamic_temperature::{degree_celsius, degree_fahrenheit, kelvin},
-};
+use uom::si::{f32::Information, f32::Power};
 
-use crate::config::structs::ConfigFile;
+use crate::formatter::{Field, MemField, SimpleField, State, Unit};
 
 pub type Temperature = uom::si::f32::ThermodynamicTemperature;
-
-static RE: OnceLock<Regex> = OnceLock::new();
-
-pub fn get_regex() -> &'static Regex {
-    RE.get_or_init(|| Regex::new(r"\{([^}]+)}").unwrap())
-}
 
 #[derive(Default)]
 pub struct GpuStatusData {
@@ -30,9 +16,9 @@ pub struct GpuStatusData {
     /// GPU utilization in percent.
     pub(crate) gpu_utilization: Option<u8>,
     /// Memory used.
-    pub(crate) mem_used: Option<Byte>,
+    pub(crate) mem_used: Option<Information>,
     /// Total memory.
-    pub(crate) mem_total: Option<Byte>,
+    pub(crate) mem_total: Option<Information>,
     /// Memory data bus utilization in percent.
     pub(crate) mem_rw: Option<u8>,
     /// Decoder utilization in percent.
@@ -50,135 +36,95 @@ pub struct GpuStatusData {
     /// Fan speed in percent.
     pub(crate) fan_speed: Option<u8>,
     /// PCIe TX throughput per second.
-    pub(crate) tx: Option<Byte>,
+    pub(crate) tx: Option<Information>,
     /// PCIe RX throughput per second.
-    pub(crate) rx: Option<Byte>,
+    pub(crate) rx: Option<Information>,
 }
 
 impl GpuStatusData {
     pub(crate) fn compute_mem_usage(&self) -> Option<u8> {
         if let (Some(mem_used), Some(mem_total)) = (self.mem_used, self.mem_total) {
-            let ratio = mem_used.as_u64() as f64 / mem_total.as_u64() as f64;
-            Some((ratio * 100f64).round() as u8)
+            let ratio: f32 = (mem_used / mem_total).into();
+            Some((ratio * 100.0).round() as u8)
         } else {
             None
         }
     }
 
-    pub fn get_text(&self, config: &ConfigFile) -> String {
+    pub fn get_text<'a>(&self, state: &'a mut State) -> &'a str {
         if !self.powered_on {
-            return "Off".to_string();
+            return "Off";
         }
 
         if !self.has_running_processes {
-            return "Idle".to_string();
+            return "Idle";
         }
 
-        let format = &config.text.format;
-        self.format_with_fields(format)
+        state.assemble(self);
+        &state.buffer
     }
 
-    pub fn get_tooltip(&self, config: &ConfigFile) -> String {
+    pub fn get_tooltip<'a>(&self, state: &'a mut State) -> &'a str {
         if !self.powered_on {
-            return "GPU powered off".to_string();
+            return "GPU powered off";
         }
 
         if !self.has_running_processes {
-            return "GPU idle".to_string();
+            return "GPU idle";
         }
 
-        let format = &config.tooltip.format();
-        self.format_with_fields(format)
+        state.assemble(self);
+        &state.buffer
     }
 
-    pub fn get_field(&self, name: &str) -> Option<String> {
-        // Local macros to reduce boilerplate
+    // TODO: doc
+    pub fn get_field_to_string(&self, field: Field) -> Option<String> {
+        macro_rules! u {
+            ($val:expr, $unit:expr) => {
+                $val.map(|v| $unit.compute(v).to_string())
+            };
+        }
+
+        match field {
+            Field::Simple(field) => self.get_simple_field_to_string(field),
+            Field::Mem(field, unit) => u!(self.get_mem_field(field), unit),
+            Field::Temperature(unit) => u!(self.temperature, unit),
+            Field::Power(unit) => u!(self.power, unit),
+            Field::Unknown => None,
+        }
+    }
+
+    pub fn is_field_unavailable(&self, field: Field) -> bool {
+        self.get_field_to_string(field).is_none()
+    }
+
+    fn get_simple_field_to_string(&self, field: SimpleField) -> Option<String> {
+        // Local macro to reduce boilerplate
         macro_rules! s {
             ($val:expr) => {
                 $val.map(|v| v.to_string())
             };
         }
 
-        macro_rules! r {
-            ($val:expr, $unit:ident) => {
-                $val.map(|t| t.get::<$unit>().round().to_string())
-            };
-        }
-
-        match name {
-            "gpu_utilization" => s!(self.gpu_utilization),
-            "mem_rw" => s!(self.mem_rw),
-            "mem_utilization" => s!(self.compute_mem_usage()),
-            "decoder_utilization" => s!(self.decoder_utilization),
-            "encoder_utilization" => s!(self.encoder_utilization),
-            "temperature_c" => r!(self.temperature, degree_celsius),
-            "temperature_f" => r!(self.temperature, degree_fahrenheit),
-            "temperature_k" => r!(self.temperature, kelvin),
-            "power_kw" => s!(self.power.map(|p| p.get::<kilowatt>())),
-            "power_w" => s!(self.power.map(|p| p.get::<watt>())),
-            "p_state" => s!(self.p_state),
-            "p_level" => s!(self.p_level),
-            "fan_speed" => s!(self.fan_speed),
-            _ => {
-                // TODO: Handle digits
-                let maybe_byte_field = self.format_byte_field(name);
-
-                if maybe_byte_field.is_none() {
-                    eprintln!("Warning: unknown field: {}", name);
-                }
-
-                maybe_byte_field.map(|byte| byte.get_value().to_string())
-            }
+        match field {
+            SimpleField::GpuUtilization => s!(self.gpu_utilization),
+            SimpleField::MemRw => s!(self.mem_rw),
+            SimpleField::MemUtilization => s!(self.compute_mem_usage()),
+            SimpleField::DecoderUtilization => s!(self.decoder_utilization),
+            SimpleField::EncoderUtilization => s!(self.encoder_utilization),
+            SimpleField::PState => s!(self.p_state),
+            SimpleField::PLevel => s!(self.p_level),
+            SimpleField::FanSpeed => s!(self.fan_speed),
         }
     }
 
-    /// Returns an [AdjustedByte] in the specified unit.
-    /// The unit is determined by the template suffix.
-    /// For example, it adjusts to `MiB` for the template `{mem_used_MiB}`.
-    ///
-    /// Returns `None` if the name prefix does not match any field, or if
-    /// the unit cannot be parsed.
-    fn format_byte_field(&self, name: &str) -> Option<AdjustedByte> {
-        let fields = [
-            ("mem_used_", self.mem_used),
-            ("mem_total_", self.mem_total),
-            ("tx_", self.tx),
-            ("rx_", self.rx),
-        ];
-
-        for (prefix, value) in fields {
-            if let Some(v) = value
-                && name.starts_with(prefix)
-            {
-                return Self::get_adjusted_unit(name, prefix, v).ok();
-            }
+    fn get_mem_field(&self, field: MemField) -> Option<Information> {
+        match field {
+            MemField::MemUsed => self.mem_used,
+            MemField::MemTotal => self.mem_total,
+            MemField::Tx => self.tx,
+            MemField::Rx => self.rx,
         }
-
-        None
-    }
-
-    fn get_adjusted_unit(
-        name: &str,
-        prefix: &str,
-        byte: Byte,
-    ) -> Result<AdjustedByte, UnitParseError> {
-        let unit_str = name.strip_prefix(prefix).unwrap();
-        let unit = Unit::parse_str(unit_str, true, true)?;
-
-        Ok(byte.get_adjusted_unit(unit))
-    }
-
-    fn format_with_fields(&self, s: &str) -> String {
-        // Regex to match patterns like {variable_name}
-        let re = get_regex();
-
-        re.replace_all(s, |caps: &regex::Captures| {
-            let key = &caps[1];
-            self.get_field(key)
-                .map(Cow::Owned)
-                .unwrap_or(Cow::Borrowed("N/A"))
-        })
-        .into_owned()
     }
 }
 

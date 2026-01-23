@@ -3,7 +3,10 @@ use std::path::PathBuf;
 use amdgpu_sysfs::gpu_handle::GpuHandle;
 use color_eyre::eyre::{Result, eyre};
 use regex::Regex;
-use uom::si::{f64::Power, power::watt, thermodynamic_temperature::degree_celsius};
+use uom::si::{
+    f32::Information, f32::Power, information::byte, power::watt,
+    thermodynamic_temperature::degree_celsius,
+};
 
 use crate::gpu_status::{GpuStatus, GpuStatusData, Temperature};
 
@@ -39,10 +42,19 @@ impl GpuStatus for AmdGpuStatus {
             has_running_processes: true, /* TODO: temporarily set to true until AMD GPU process
                                           * detection is implemented */
             gpu_utilization: gpu_handle.get_busy_percent().ok(),
-            mem_used: gpu_handle.get_used_vram().ok().map(|v| v.into()),
-            mem_total: gpu_handle.get_total_vram().ok().map(|v| v.into()),
+            mem_used: gpu_handle
+                .get_used_vram()
+                .ok()
+                .map(|v| Information::new::<byte>(v as f32)),
+            mem_total: gpu_handle
+                .get_total_vram()
+                .ok()
+                .map(|v| Information::new::<byte>(v as f32)),
             temperature: temp.map(Temperature::new::<degree_celsius>),
-            power: hw_mon.get_power_input().ok().map(Power::new::<watt>),
+            power: hw_mon
+                .get_power_input()
+                .ok()
+                .map(|v| Power::new::<watt>(v as f32)),
             p_level: gpu_handle.get_power_force_performance_level().ok(),
             fan_speed: hw_mon.get_fan_current().ok().map(|v| v as u8),
             ..Default::default()

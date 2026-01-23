@@ -1,5 +1,6 @@
 pub mod amd;
 pub mod config;
+pub mod formatter;
 pub mod gpu_status;
 pub mod nvidia;
 
@@ -16,7 +17,7 @@ use serde::Serialize;
 
 use crate::{
     amd::{AmdGpuStatus, AmdSysFS},
-    config::structs::ConfigFile,
+    formatter::State,
     gpu_status::{GpuStatus, GpuStatusData},
     nvidia::NvidiaGpuStatus,
 };
@@ -100,6 +101,9 @@ fn main() -> Result<()> {
         config.tooltip.retain_lines_with_values(&gpu_status_data);
     }
 
+    let mut text_state = State::try_from_format(&config.text.format)?;
+    let mut tooltip_state = State::try_from_format(config.tooltip.format())?;
+
     let update_interval = Duration::from_millis(config.general.interval);
 
     let mut stdout_lock = stdout().lock();
@@ -107,7 +111,7 @@ fn main() -> Result<()> {
     loop {
         let gpu_status_data = gpu_status_handler.compute()?;
 
-        let output = format_output(gpu_status_data, &config);
+        let output = format_output(&gpu_status_data, &mut text_state, &mut tooltip_state);
 
         writeln!(&mut stdout_lock, "{}", sonic_rs::to_string(&output)?)?;
 
@@ -115,15 +119,19 @@ fn main() -> Result<()> {
     }
 }
 
-fn format_output(gpu_status: GpuStatusData, config: &ConfigFile) -> OutputFormat {
+fn format_output<'t, 'u>(
+    gpu_status: &GpuStatusData,
+    text_state: &'t mut State,
+    tooltip_state: &'u mut State,
+) -> OutputFormat<'t, 'u> {
     OutputFormat {
-        text: gpu_status.get_text(config),
-        tooltip: gpu_status.get_tooltip(config),
+        text: gpu_status.get_text(text_state),
+        tooltip: gpu_status.get_tooltip(tooltip_state),
     }
 }
 
 #[derive(Default, Serialize)]
-struct OutputFormat {
-    text: String,
-    tooltip: String,
+struct OutputFormat<'t, 'u> {
+    text: &'t str,
+    tooltip: &'u str,
 }

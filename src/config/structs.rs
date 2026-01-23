@@ -1,10 +1,13 @@
+use std::str::FromStr;
+
 use color_eyre::Result;
 use serde::Deserialize;
 use smart_default::SmartDefault;
 
 use crate::{
     Args,
-    gpu_status::{self, GpuStatusData},
+    formatter::{self, Field},
+    gpu_status::GpuStatusData,
 };
 
 #[derive(Default, Deserialize)]
@@ -86,13 +89,13 @@ RX: {rx} MiB/s";
     /// in `data`, that entire line is removed from the format.
     pub fn retain_lines_with_values(&mut self, data: &GpuStatusData) {
         let mut result = String::new();
-        let re = gpu_status::get_regex();
+        let re = formatter::get_regex();
 
         for line in self.format().split_inclusive('\n') {
             // Check if ANY placeholder in the line has no value
-            let has_unavailable = re
-                .captures_iter(line)
-                .any(|caps| data.get_field(&caps[1]).is_none());
+            let has_unavailable = re.captures_iter(line).any(|caps| {
+                Field::from_str(&caps[1]).map_or(true, |f| data.is_field_unavailable(f))
+            });
 
             if has_unavailable {
                 continue;
@@ -111,7 +114,7 @@ mod tests {
         config::structs::TooltipConfig,
         gpu_status::{GpuStatusData, PState},
     };
-    use byte_unit::{Byte, Unit};
+    use uom::si::{f32::Information, information::mebibyte};
 
     /// Test that lines with unavailable fields are dropped.
     #[test]
@@ -120,8 +123,8 @@ mod tests {
             p_state: Some(PState::P0),
             p_level: None,
             fan_speed: None,
-            tx: Byte::from_u64_with_unit(5, Unit::MiB),
-            rx: Byte::from_u64_with_unit(6, Unit::MiB),
+            tx: Some(Information::new::<mebibyte>(5.0)),
+            rx: Some(Information::new::<mebibyte>(6.0)),
             ..Default::default()
         };
 
@@ -130,8 +133,8 @@ mod tests {
                 r"PSTATE: {p_state}
 PLEVEL: {p_level}
 FAN SPEED: {fan_speed}%
-TX: {tx_MiB} MiB/s
-RX: {rx_MiB} MiB/s"
+TX: {tx:MiB} MiB/s
+RX: {rx:MiB} MiB/s"
                     .to_string(),
             ),
         };
@@ -141,8 +144,8 @@ RX: {rx_MiB} MiB/s"
         assert_eq!(
             config.format.unwrap(),
             r"PSTATE: {p_state}
-TX: {tx_MiB} MiB/s
-RX: {rx_MiB} MiB/s"
+TX: {tx:MiB} MiB/s
+RX: {rx:MiB} MiB/s"
         );
     }
 
@@ -152,7 +155,7 @@ RX: {rx_MiB} MiB/s"
     fn test_retain_lines_with_multiple_placeholders() {
         let data = GpuStatusData {
             gpu_utilization: Some(50),
-            mem_used: Byte::from_u64_with_unit(50, Unit::MiB),
+            mem_used: Some(Information::new::<mebibyte>(50.0)),
             mem_total: None, // This should cause the line to be dropped
             p_state: Some(PState::P0),
             p_level: None, // This should cause the line to be dropped
