@@ -1,5 +1,6 @@
 use amdgpu_sysfs::gpu_handle::PerformanceLevel;
 use color_eyre::eyre::Result;
+use std::fmt::{Display, Write};
 use strum::Display;
 use uom::si::{f32::Information, f32::Power};
 
@@ -78,44 +79,69 @@ impl GpuStatusData {
     }
 
     // TODO: doc
-    pub fn get_field_to_string(&self, field: Field) -> Option<String> {
+    pub fn write_field(&self, field: Field, buffer: &mut String) -> Result<(), WriteFieldError> {
         macro_rules! u {
             ($val:expr, $unit:expr) => {
-                $val.map(|v| $unit.compute(v).to_string())
+                if let Some(v) = $val {
+                    write!(buffer, "{}", $unit.compute(v)).unwrap();
+                } else {
+                    return Err(WriteFieldError::FieldIsNone);
+                }
             };
         }
 
         match field {
-            Field::Simple(field) => self.get_simple_field_to_string(field),
+            Field::Simple(field) => self.write_simple_field(field, buffer)?,
             Field::Mem(field, unit) => u!(self.get_mem_field(field), unit),
             Field::Temperature(unit) => u!(self.temperature, unit),
             Field::Power(unit) => u!(self.power, unit),
-            Field::Unknown => None,
-        }
+            Field::Unknown => buffer.push_str("N/A"),
+        };
+
+        Ok(())
     }
 
     pub fn is_field_unavailable(&self, field: Field) -> bool {
-        self.get_field_to_string(field).is_none()
+        match field {
+            Field::Unknown => true,
+            Field::Simple(f) => self.get_simple_field_display(f).is_none(),
+            Field::Mem(f, _) => self.get_mem_field(f).is_none(),
+            Field::Temperature(_) => self.temperature.is_none(),
+            Field::Power(_) => self.power.is_none(),
+        }
     }
 
-    fn get_simple_field_to_string(&self, field: SimpleField) -> Option<String> {
-        // Local macro to reduce boilerplate
-        macro_rules! s {
+    fn get_simple_field_display(&self, field: SimpleField) -> Option<DisplayValue<'_>> {
+        macro_rules! d {
             ($val:expr) => {
-                $val.map(|v| v.to_string())
+                $val.as_ref().map(|v| DisplayValue::Ref(v as &dyn Display))
             };
         }
 
         match field {
-            SimpleField::GpuUtilization => s!(self.gpu_utilization),
-            SimpleField::MemRw => s!(self.mem_rw),
-            SimpleField::MemUtilization => s!(self.compute_mem_usage()),
-            SimpleField::DecoderUtilization => s!(self.decoder_utilization),
-            SimpleField::EncoderUtilization => s!(self.encoder_utilization),
-            SimpleField::PState => s!(self.p_state),
-            SimpleField::PLevel => s!(self.p_level),
-            SimpleField::FanSpeed => s!(self.fan_speed),
+            SimpleField::GpuUtilization => d!(self.gpu_utilization),
+            SimpleField::MemRw => d!(self.mem_rw),
+            SimpleField::MemUtilization => self.compute_mem_usage().map(DisplayValue::Value),
+            SimpleField::DecoderUtilization => d!(self.decoder_utilization),
+            SimpleField::EncoderUtilization => d!(self.encoder_utilization),
+            SimpleField::PState => d!(self.p_state),
+            SimpleField::PLevel => d!(self.p_level),
+            SimpleField::FanSpeed => d!(self.fan_speed),
         }
+    }
+
+    fn write_simple_field(
+        &self,
+        field: SimpleField,
+        buffer: &mut String,
+    ) -> Result<(), WriteFieldError> {
+        if let Some(field_display) = self.get_simple_field_display(field) {
+            write!(buffer, "{field_display}").unwrap();
+        } else {
+            return Err(WriteFieldError::FieldIsNone);
+        }
+
+        Ok(())
     }
 
     fn get_mem_field(&self, field: MemField) -> Option<Information> {
@@ -157,4 +183,23 @@ pub(crate) enum PState {
     P15,
     #[default]
     Unknown,
+}
+
+#[derive(Debug)]
+pub enum WriteFieldError {
+    FieldIsNone,
+}
+
+enum DisplayValue<'a> {
+    Ref(&'a dyn Display),
+    Value(u8),
+}
+
+impl<'a> Display for DisplayValue<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DisplayValue::Ref(display) => write!(f, "{display}"),
+            DisplayValue::Value(v) => write!(f, "{v}"),
+        }
+    }
 }

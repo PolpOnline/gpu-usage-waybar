@@ -1,10 +1,10 @@
 pub mod units;
 
 use regex::Regex;
-use std::borrow::Cow;
 use std::{fmt::Debug, str::FromStr};
 use strum::{Display, EnumString};
 
+use crate::gpu_status::WriteFieldError;
 use crate::{formatter::units::*, gpu_status::GpuStatusData};
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -92,10 +92,12 @@ impl State {
             match chunk {
                 Chunk::Static(s) => self.buffer.push_str(s),
                 Chunk::Variable(field) => {
-                    let s = data
-                        .get_field_to_string(*field)
-                        .map_or(Cow::Borrowed("N/A"), Cow::Owned);
-                    self.buffer.push_str(&s);
+                    if matches!(
+                        data.write_field(*field, &mut self.buffer),
+                        Err(WriteFieldError::FieldIsNone)
+                    ) {
+                        self.buffer.push_str("N/A");
+                    }
                 }
             }
         }
