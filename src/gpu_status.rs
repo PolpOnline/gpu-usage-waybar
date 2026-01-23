@@ -3,7 +3,7 @@ use color_eyre::eyre::Result;
 use strum::Display;
 use uom::si::{f32::Information, f32::Power};
 
-use crate::formatter::{Field, MemField, SimpleField, State, Unit};
+use crate::formatter::{units::*, *};
 
 pub type Temperature = uom::si::f32::ThermodynamicTemperature;
 
