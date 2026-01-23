@@ -106,7 +106,9 @@ impl Unit for TemperatureUnit {
 
 #[derive(Debug, Clone, Copy, PartialEq, Display, EnumString)]
 pub enum PowerUnit {
+    #[strum(serialize = "w")]
     Watt,
+    #[strum(serialize = "kw")]
     KiloWatt,
 }
 
