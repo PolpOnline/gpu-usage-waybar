@@ -6,7 +6,7 @@ use smart_default::SmartDefault;
 
 use crate::{
     Args,
-    formatter::{self, Field},
+    formatter::{self, fields::Field},
     gpu_status::GpuStatusData,
 };
 

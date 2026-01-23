@@ -4,7 +4,7 @@ use std::fmt::{Display, Write};
 use strum::Display;
 use uom::si::{f32::Information, f32::Power};
 
-use crate::formatter::{units::*, *};
+use crate::formatter::{fields::*, units::*, *};
 
 pub type Temperature = uom::si::f32::ThermodynamicTemperature;
 
