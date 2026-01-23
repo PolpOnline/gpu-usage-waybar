@@ -121,7 +121,7 @@ impl GpuStatusData {
         match field {
             SimpleField::GpuUtilization => d!(self.gpu_utilization),
             SimpleField::MemRw => d!(self.mem_rw),
-            SimpleField::MemUtilization => self.compute_mem_usage().map(SimpleDisplay::U8),
+            SimpleField::MemUtilization => d!(self.compute_mem_usage()),
             SimpleField::DecoderUtilization => d!(self.decoder_utilization),
             SimpleField::EncoderUtilization => d!(self.encoder_utilization),
             SimpleField::PState => self.p_state.map(SimpleDisplay::PState),
