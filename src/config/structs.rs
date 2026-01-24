@@ -92,9 +92,10 @@ RX: {rx} MiB/s";
         let re = formatter::get_regex();
 
         for line in self.format().split_inclusive('\n') {
-            // Check if ANY placeholder in the line has no value
+            // Check if ANY field string is invalid
             let has_unavailable = re.captures_iter(line).any(|caps| {
-                Field::from_str(&caps[1]).map_or(true, |f| data.is_field_unavailable(f))
+                let field_str = &caps[1];
+                Field::from_str(field_str).map_or(true, |f| data.is_field_unavailable(f))
             });
 
             if has_unavailable {

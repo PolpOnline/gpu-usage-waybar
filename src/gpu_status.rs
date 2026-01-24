@@ -104,6 +104,7 @@ impl GpuStatusData {
         Ok(())
     }
 
+    /// Returns `true` if the field is [Field::Unknown] or the corresponding value is `None`.
     pub fn is_field_unavailable(&self, field: Field) -> bool {
         match field {
             Field::Unknown => true,
