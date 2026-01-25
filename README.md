@@ -59,21 +59,22 @@ format = "{gpu_utilization}%|{mem_utilization}%"
 
 [tooltip]
 format = """GPU: {gpu_utilization}%
-MEM USED: {mem_used:MiB}/{mem_total:MiB} MiB ({mem_utilization}%)
+MEM USED: {mem_used:MiB.0}/{mem_total:MiB.0} MiB ({mem_utilization}%)
 MEM R/W: {mem_rw}%
 DEC: {decoder_utilization}%
 ENC: {encoder_utilization}%
-TEMP: {temperature:c}°C
-POWER: {power:w}W
+TEMP: {temperature:c.0}°C
+POWER: {power:w.0}W
 PSTATE: {p_state}
 PLEVEL: {p_level}
 FAN SPEED: {fan_speed}%
-TX: {tx:MiB} MiB/s
-RX: {rx:MiB} MiB/s"""
+TX: {tx:MiB.0} MiB/s
+RX: {rx:MiB.0} MiB/s"""
 ```
 
-- You can specify a unit using `:unit`,
-  e.g., `temperature:c` for Celsius or `temperature:f` for Fahrenheit.
+- You can specify both a unit and the number of decimal places using
+  the syntax `:unit.precision`, e.g., `temperature:c.0` for Celsius
+  with no decimals, or `temperature:f.1` for Fahrenheit with one decimal place.
   Available units are listed in the table below.
 - The text format defaults to `"{gpu_utilization}%|{mem_utilization}%"`. 
 - The tooltip defaults to all fields that are supported by your GPU if not customized. 

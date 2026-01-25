@@ -63,18 +63,18 @@ pub struct Args {
 
     /// The format you want to display for `tooltip`.
     /// For example,
-    /// "GPU: {gpu_utilization}%\n
-    /// MEM USED: {mem_used:MiB}/{mem_total:MiB} MiB ({mem_utilization}%)\n
-    /// MEM R/W: {mem_rw}%\n
-    /// DEC: {decoder_utilization}%\n
-    /// ENC: {encoder_utilization}%\n
-    /// TEMP: {temperature:c}°C\n
-    /// POWER: {power:w}W\n
-    /// PSTATE: {p_state}\n
-    /// PLEVEL: {p_level}\n
-    /// FAN SPEED: {fan_speed}%\n
-    /// TX: {tx:MiB} MiB/s\n
-    /// RX: {rx:MiB} MiB/s"
+    /// "GPU: {gpu_utilization}%
+    /// MEM USED: {mem_used:MiB.0}/{mem_total:MiB.0} MiB ({mem_utilization}%)
+    /// MEM R/W: {mem_rw}%
+    /// DEC: {decoder_utilization}%
+    /// ENC: {encoder_utilization}%
+    /// TEMP: {temperature:c.0}°C
+    /// POWER: {power:w.0}W
+    /// PSTATE: {p_state}
+    /// PLEVEL: {p_level}
+    /// FAN SPEED: {fan_speed}%
+    /// TX: {tx:MiB.0} MiB/s
+    /// RX: {rx:MiB.0} MiB/s"
     #[arg(long)]
     tooltip_format: Option<String>,
 }
