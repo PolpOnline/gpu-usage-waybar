@@ -83,6 +83,8 @@ impl GpuStatusData {
     /// - Writes "N/A" if `field` is [Field::Unknown].
     /// - Returns [WriteFieldError::FieldIsNone] if `field` is `None`.
     pub fn write_field(&self, field: Field, buffer: &mut String) -> Result<(), WriteFieldError> {
+        let scan_end_index = buffer.len();
+
         macro_rules! u {
             ($val:expr, $unit:expr, $precision:expr) => {
                 if let Some(v) = $val {
@@ -106,7 +108,7 @@ impl GpuStatusData {
             Field::Unknown => buffer.push_str("N/A"),
         };
 
-        formatter::trim_trailing_zeros(buffer);
+        formatter::trim_trailing_zeros(buffer, scan_end_index);
 
         Ok(())
     }

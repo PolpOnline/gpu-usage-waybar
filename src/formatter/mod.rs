@@ -58,10 +58,15 @@ pub fn get_regex() -> Regex {
     Regex::new(r"\{([^}]+)}").unwrap()
 }
 
-pub fn trim_trailing_zeros(buf: &mut String) {
+pub fn trim_trailing_zeros(buf: &mut String, protected_len: usize) {
     let Some(dot_pos) = buf.find('.') else {
         return;
     };
+
+    // do not affect protected segment
+    if dot_pos <= protected_len {
+        return;
+    }
 
     let mut end = buf.len();
 
@@ -151,21 +156,28 @@ RX: {rx:MiB.2} MiB/s";
     #[test]
     fn test_trim_trailing_zeros() {
         let mut buf = "1.50000".to_string();
-        trim_trailing_zeros(&mut buf);
+        trim_trailing_zeros(&mut buf, 0);
         assert_eq!(buf, "1.5");
     }
 
     #[test]
     fn test_trim_trailing_zeros_and_dot() {
         let mut buf = "1.00000".to_string();
-        trim_trailing_zeros(&mut buf);
+        trim_trailing_zeros(&mut buf, 0);
         assert_eq!(buf, "1");
     }
 
     #[test]
     fn test_trim_trailing_zeros_without_decimal() {
         let mut buf = "10000".to_string();
-        trim_trailing_zeros(&mut buf);
+        trim_trailing_zeros(&mut buf, 0);
         assert_eq!(buf, "10000");
+    }
+
+    #[test]
+    fn test_trim_trailing_zeros_with_previous_decimals() {
+        let mut buf = "100.00 120".to_string();
+        trim_trailing_zeros(&mut buf, 7);
+        assert_eq!(buf, "100.00 120");
     }
 }
