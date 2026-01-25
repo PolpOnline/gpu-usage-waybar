@@ -58,24 +58,24 @@ pub fn get_regex() -> Regex {
     Regex::new(r"\{([^}]+)}").unwrap()
 }
 
-pub fn trim_trailing_zeros(buf: &mut String, protected_len: usize) {
-    let Some(dot_pos) = buf.find('.') else {
+pub fn trim_trailing_zeros(buf: &mut String, scan_end_index: usize) {
+    let Some(last_dot_pos) = buf.rfind('.') else {
         return;
     };
 
-    // do not affect protected segment
-    if dot_pos <= protected_len {
+    // do not trim zeros if the last dot pos is before scan_end_index
+    if last_dot_pos <= scan_end_index {
         return;
     }
 
     let mut end = buf.len();
 
-    while end > dot_pos + 1 && buf.as_bytes()[end - 1] == b'0' {
+    while end > last_dot_pos + 1 && buf.as_bytes()[end - 1] == b'0' {
         end -= 1;
     }
 
     // If only '.' left
-    if end == dot_pos + 1 {
+    if end == last_dot_pos + 1 {
         end -= 1;
     }
 
@@ -179,5 +179,12 @@ RX: {rx:MiB.2} MiB/s";
         let mut buf = "100.00 120".to_string();
         trim_trailing_zeros(&mut buf, 7);
         assert_eq!(buf, "100.00 120");
+    }
+
+    #[test]
+    fn test_trim_trailing_zeros_with_mutiple_dots() {
+        let mut buf = "100.00 120.0 500.000".to_string();
+        trim_trailing_zeros(&mut buf, 13);
+        assert_eq!(buf, "100.00 120.0 500");
     }
 }
