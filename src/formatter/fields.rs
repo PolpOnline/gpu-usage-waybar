@@ -31,7 +31,9 @@ impl FromStr for Field {
     /// require a unit, or `temperature:c` when a unit must be specified. The colon
     /// separates the field name and the unit name.
     ///
-    /// If no pattern matches, [Field::Unknown] is returned.
+    /// If the field name (before the colon) is unrecognized, [Field::Unknown] is returned.
+    /// If the input is not a [SimpleField] and lacks the required `:unit.precision` syntax,
+    /// an error is returned.
     ///
     /// # Errors
     ///
