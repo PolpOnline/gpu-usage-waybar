@@ -4,7 +4,7 @@ use std::fmt::{Display, Write};
 use strum::Display;
 use uom::si::{f32::Information, f32::Power};
 
-use crate::formatter::{fields::*, units::*, *};
+use crate::formatter::{self, fields::*, units::*, *};
 
 pub type Temperature = uom::si::f32::ThermodynamicTemperature;
 
@@ -84,9 +84,10 @@ impl GpuStatusData {
     /// - Returns [WriteFieldError::FieldIsNone] if `field` is `None`.
     pub fn write_field(&self, field: Field, buffer: &mut String) -> Result<(), WriteFieldError> {
         macro_rules! u {
-            ($val:expr, $unit:expr) => {
+            ($val:expr, $unit:expr, $precision:expr) => {
                 if let Some(v) = $val {
-                    write!(buffer, "{}", $unit.compute(v)).unwrap();
+                    let v = $unit.compute(v);
+                    write!(buffer, "{:.*}", $precision, v).unwrap();
                 } else {
                     return Err(WriteFieldError::FieldIsNone);
                 }
@@ -95,11 +96,17 @@ impl GpuStatusData {
 
         match field {
             Field::Simple(field) => self.write_simple_field(field, buffer)?,
-            Field::Mem(field, unit) => u!(self.get_mem_field(field), unit),
-            Field::Temperature(unit) => u!(self.temperature, unit),
-            Field::Power(unit) => u!(self.power, unit),
+            Field::Mem {
+                field,
+                unit,
+                precision,
+            } => u!(self.get_mem_field(field), unit, precision),
+            Field::Temperature { unit, precision } => u!(self.temperature, unit, precision),
+            Field::Power { unit, precision } => u!(self.power, unit, precision),
             Field::Unknown => buffer.push_str("N/A"),
         };
+
+        formatter::trim_trailing_zeros(buffer);
 
         Ok(())
     }
@@ -108,10 +115,20 @@ impl GpuStatusData {
     pub fn is_field_unavailable(&self, field: Field) -> bool {
         match field {
             Field::Unknown => true,
-            Field::Simple(f) => self.get_simple_field_display(f).is_none(),
-            Field::Mem(f, _) => self.get_mem_field(f).is_none(),
-            Field::Temperature(_) => self.temperature.is_none(),
-            Field::Power(_) => self.power.is_none(),
+            Field::Simple(field) => self.get_simple_field_display(field).is_none(),
+            Field::Mem {
+                field,
+                unit: _,
+                precision: _,
+            } => self.get_mem_field(field).is_none(),
+            Field::Temperature {
+                unit: _,
+                precision: _,
+            } => self.temperature.is_none(),
+            Field::Power {
+                unit: _,
+                precision: _,
+            } => self.power.is_none(),
         }
     }
 
@@ -207,5 +224,52 @@ impl Display for SimpleDisplay {
             SimpleDisplay::PState(v) => write!(f, "{v}"),
             SimpleDisplay::PLevel(v) => write!(f, "{v}"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use uom::si::thermodynamic_temperature::degree_celsius;
+
+    use super::*;
+
+    #[test]
+    fn test_write_field_precision() {
+        let data = GpuStatusData {
+            temperature: Some(Temperature::new::<degree_celsius>(35.12345)),
+            ..Default::default()
+        };
+        let mut buf = String::new();
+
+        data.write_field(
+            Field::Temperature {
+                unit: TemperatureUnit::Celsius,
+                precision: 2,
+            },
+            &mut buf,
+        )
+        .unwrap();
+
+        assert_eq!(buf, "35.12");
+    }
+
+    #[test]
+    fn test_write_field_precision_zero() {
+        let data = GpuStatusData {
+            temperature: Some(Temperature::new::<degree_celsius>(35.12345)),
+            ..Default::default()
+        };
+        let mut buf = String::new();
+
+        data.write_field(
+            Field::Temperature {
+                unit: TemperatureUnit::Celsius,
+                precision: 0,
+            },
+            &mut buf,
+        )
+        .unwrap();
+
+        assert_eq!(buf, "35");
     }
 }

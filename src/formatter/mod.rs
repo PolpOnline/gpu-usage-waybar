@@ -58,6 +58,25 @@ pub fn get_regex() -> Regex {
     Regex::new(r"\{([^}]+)}").unwrap()
 }
 
+pub fn trim_trailing_zeros(buf: &mut String) {
+    let Some(dot_pos) = buf.find('.') else {
+        return;
+    };
+
+    let mut end = buf.len();
+
+    while end > dot_pos + 1 && buf.as_bytes()[end - 1] == b'0' {
+        end -= 1;
+    }
+
+    // If only '.' left
+    if end == dot_pos + 1 {
+        end -= 1;
+    }
+
+    buf.truncate(end);
+}
+
 fn parse(format: &str) -> Result<Vec<Chunk>, UnitParseError> {
     let re = get_regex();
     let mut chunks = Vec::new();
@@ -96,8 +115,8 @@ mod tests {
         let format = r"PSTATE: {p_state}
 PLEVEL: {p_level}
 FAN SPEED: {fan_speed}%
-TX: {tx:MiB} MiB/s
-RX: {rx:MiB} MiB/s";
+TX: {tx:MiB.1} MiB/s
+RX: {rx:MiB.2} MiB/s";
 
         let chunks = parse(format).unwrap();
 
@@ -111,11 +130,33 @@ RX: {rx:MiB} MiB/s";
                 Chunk::Static("\nFAN SPEED: ".to_string()),
                 Chunk::Variable(Field::Simple(SimpleField::FanSpeed)),
                 Chunk::Static("%\nTX: ".to_string()),
-                Chunk::Variable(Field::Mem(MemField::Tx, MemUnit::MiB)),
+                Chunk::Variable(Field::Mem {
+                    field: MemField::Tx,
+                    unit: MemUnit::MiB,
+                    precision: 1,
+                }),
                 Chunk::Static(" MiB/s\nRX: ".to_string()),
-                Chunk::Variable(Field::Mem(MemField::Rx, MemUnit::MiB)),
+                Chunk::Variable(Field::Mem {
+                    field: MemField::Rx,
+                    unit: MemUnit::MiB,
+                    precision: 2,
+                }),
                 Chunk::Static(" MiB/s".to_string()),
             ]
         );
+    }
+
+    #[test]
+    fn test_trim_trailing_zeros() {
+        let mut buf = "1.50000".to_string();
+        trim_trailing_zeros(&mut buf);
+        assert_eq!(buf, "1.5");
+    }
+
+    #[test]
+    fn test_trim_trailing_zeros_and_dot() {
+        let mut buf = "1.00000".to_string();
+        trim_trailing_zeros(&mut buf);
+        assert_eq!(buf, "1");
     }
 }

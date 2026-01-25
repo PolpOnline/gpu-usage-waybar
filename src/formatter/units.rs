@@ -15,9 +15,12 @@ use uom::si::{
 
 use crate::gpu_status::Temperature;
 
+// TODO: maybe move this to fields.rs
 #[derive(Debug)]
 pub enum UnitParseError {
     NoColon,
+    NoDot,
+    Precision(String),
     Memory(String),
     Temperature(String),
     Power(String),
@@ -30,6 +33,8 @@ impl Display for UnitParseError {
                 f,
                 "There's no colon found separating field name and unit name."
             ),
+            UnitParseError::NoDot => write!(f, "There's no dot found specifying precision."),
+            UnitParseError::Precision(s) => write!(f, "Unable to parse precision: `{s}`"),
             UnitParseError::Memory(unit) => write!(f, "Invalid memory unit: `{unit}`"),
             UnitParseError::Temperature(unit) => write!(f, "Invalid temperature unit: `{unit}`"),
             UnitParseError::Power(unit) => write!(f, "Invalid power unit: `{unit}`"),
