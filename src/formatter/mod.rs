@@ -161,4 +161,11 @@ RX: {rx:MiB.2} MiB/s";
         trim_trailing_zeros(&mut buf);
         assert_eq!(buf, "1");
     }
+
+    #[test]
+    fn test_trim_trailing_zeros_without_decimal() {
+        let mut buf = "10000".to_string();
+        trim_trailing_zeros(&mut buf);
+        assert_eq!(buf, "10000");
+    }
 }
