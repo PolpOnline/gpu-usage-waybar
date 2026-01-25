@@ -1,4 +1,8 @@
-use std::{fmt::Debug, str::FromStr};
+use std::{
+    error::Error,
+    fmt::{Debug, Display},
+    str::FromStr,
+};
 use strum::{Display, EnumString};
 
 use crate::formatter::units::*;
@@ -100,3 +104,31 @@ pub enum MemField {
     Tx,
     Rx,
 }
+
+#[derive(Debug)]
+pub enum UnitParseError {
+    NoColon,
+    NoDot,
+    Precision(String),
+    Memory(String),
+    Temperature(String),
+    Power(String),
+}
+
+impl Display for UnitParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UnitParseError::NoColon => write!(
+                f,
+                "There's no colon found separating field name and unit name."
+            ),
+            UnitParseError::NoDot => write!(f, "There's no dot found specifying precision."),
+            UnitParseError::Precision(s) => write!(f, "Unable to parse precision: `{s}`"),
+            UnitParseError::Memory(unit) => write!(f, "Invalid memory unit: `{unit}`"),
+            UnitParseError::Temperature(unit) => write!(f, "Invalid temperature unit: `{unit}`"),
+            UnitParseError::Power(unit) => write!(f, "Invalid power unit: `{unit}`"),
+        }
+    }
+}
+
+impl Error for UnitParseError {}

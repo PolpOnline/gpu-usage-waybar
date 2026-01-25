@@ -5,7 +5,7 @@ use regex::Regex;
 use std::{fmt::Debug, str::FromStr};
 
 use crate::{
-    formatter::{fields::*, units::*},
+    formatter::fields::*,
     gpu_status::{GpuStatusData, WriteFieldError},
 };
 
@@ -108,6 +108,8 @@ fn parse(format: &str) -> Result<Vec<Chunk>, UnitParseError> {
 
 #[cfg(test)]
 mod tests {
+    use crate::formatter::units::MemUnit;
+
     use super::*;
 
     #[test]

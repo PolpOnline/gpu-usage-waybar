@@ -1,48 +1,13 @@
-use std::error::Error;
 use std::fmt::Debug;
-use std::fmt::Display;
 use strum::{Display, EnumString};
-use uom::si::f32::Power;
-use uom::si::information::{
-    gibibit, gigabit, gigabyte, kibibit, kilobit, kilobyte, mebibit, megabit, megabyte,
-};
-use uom::si::power::{kilowatt, watt};
-use uom::si::thermodynamic_temperature::{degree_celsius, degree_fahrenheit, kelvin};
 use uom::si::{
-    f32::Information,
-    information::{gibibyte, kibibyte, mebibyte},
+    f32::{Information, Power},
+    information::*,
+    power::{kilowatt, watt},
+    thermodynamic_temperature::{degree_celsius, degree_fahrenheit, kelvin},
 };
 
 use crate::gpu_status::Temperature;
-
-// TODO: maybe move this to fields.rs
-#[derive(Debug)]
-pub enum UnitParseError {
-    NoColon,
-    NoDot,
-    Precision(String),
-    Memory(String),
-    Temperature(String),
-    Power(String),
-}
-
-impl Display for UnitParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            UnitParseError::NoColon => write!(
-                f,
-                "There's no colon found separating field name and unit name."
-            ),
-            UnitParseError::NoDot => write!(f, "There's no dot found specifying precision."),
-            UnitParseError::Precision(s) => write!(f, "Unable to parse precision: `{s}`"),
-            UnitParseError::Memory(unit) => write!(f, "Invalid memory unit: `{unit}`"),
-            UnitParseError::Temperature(unit) => write!(f, "Invalid temperature unit: `{unit}`"),
-            UnitParseError::Power(unit) => write!(f, "Invalid power unit: `{unit}`"),
-        }
-    }
-}
-
-impl Error for UnitParseError {}
 
 pub trait Unit: Copy {
     type Value;
