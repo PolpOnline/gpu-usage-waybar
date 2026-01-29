@@ -8,7 +8,7 @@
 
 # [tooltip]
 # format = """GPU: {gpu_utilization}%
-# MEM USED: {mem_used:MiB}/{mem_total:MiB} MiB ({mem_utilization}%)
+# MEM USED: {mem_used:MiB.0}/{mem_total:MiB} MiB ({mem_utilization}%)
 # MEM R/W: {mem_rw}%
 # DEC: {decoder_utilization}%
 # ENC: {encoder_utilization}%
@@ -17,5 +17,5 @@
 # PSTATE: {p_state}
 # PLEVEL: {p_level}
 # FAN SPEED: {fan_speed}%
-# TX: {tx:MiB} MiB/s
-# RX: {rx:MiB} MiB/s"""
+# TX: {tx:MiB.3} MiB/s
+# RX: {rx:MiB.3} MiB/s"""
