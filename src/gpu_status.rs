@@ -86,14 +86,15 @@ impl GpuStatusData {
         let scan_end_index = buffer.len();
 
         macro_rules! u {
-            ($val:expr, $unit:expr, $precision:expr) => {
-                if let Some(v) = $val {
-                    let v = $unit.compute(v);
-                    write!(buffer, "{:.*}", $precision, v).unwrap();
-                } else {
-                    return Err(WriteFieldError::FieldIsNone);
+            ($val:expr, $unit:expr, $precision:expr) => {{
+                let v = $val.ok_or(WriteFieldError::FieldIsNone)?;
+                let v = $unit.compute(v);
+
+                match $precision {
+                    Some(precision) => write!(buffer, "{:.*}", precision, v).unwrap(),
+                    None => write!(buffer, "{v}").unwrap(),
                 }
-            };
+            }};
         }
 
         match field {
@@ -246,7 +247,7 @@ mod tests {
         data.write_field(
             Field::Temperature {
                 unit: TemperatureUnit::Celsius,
-                precision: 2,
+                precision: Some(2),
             },
             &mut buf,
         )
@@ -266,7 +267,7 @@ mod tests {
         data.write_field(
             Field::Temperature {
                 unit: TemperatureUnit::Celsius,
-                precision: 0,
+                precision: Some(0),
             },
             &mut buf,
         )

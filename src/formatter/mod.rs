@@ -140,13 +140,13 @@ RX: {rx:MiB.2} MiB/s";
                 Chunk::Variable(Field::Mem {
                     field: MemField::Tx,
                     unit: MemUnit::MiB,
-                    precision: 1,
+                    precision: Some(1),
                 }),
                 Chunk::Static(" MiB/s\nRX: ".to_string()),
                 Chunk::Variable(Field::Mem {
                     field: MemField::Rx,
                     unit: MemUnit::MiB,
-                    precision: 2,
+                    precision: Some(2),
                 }),
                 Chunk::Static(" MiB/s".to_string()),
             ]
