@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use amdgpu_sysfs::gpu_handle::GpuHandle;
+use amdgpu_sysfs::{gpu_handle::GpuHandle, hw_mon::HwMon};
 use color_eyre::eyre::{Result, eyre};
 use regex::Regex;
 use uom::si::{
@@ -56,7 +56,7 @@ impl GpuStatus for AmdGpuStatus {
                 .ok()
                 .map(|v| Power::new::<watt>(v as f32)),
             p_level: gpu_handle.get_power_force_performance_level().ok(),
-            fan_speed: hw_mon.get_fan_current().ok().map(|v| v as u8),
+            fan_speed: fan_percentage(hw_mon).ok(),
             ..Default::default()
         })
     }
@@ -105,4 +105,11 @@ impl AmdSysFS {
 
         Ok(drm_gpus)
     }
+}
+
+fn fan_percentage(hw_mon: &HwMon) -> Result<u8, amdgpu_sysfs::error::Error> {
+    let current_rpm = hw_mon.get_fan_current()? as f32;
+    let max_rpm = hw_mon.get_fan_max()? as f32;
+
+    Ok((current_rpm / max_rpm * 100.0).round().clamp(0.0, 100.0) as u8)
 }
