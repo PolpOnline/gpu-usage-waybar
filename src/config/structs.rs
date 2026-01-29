@@ -60,17 +60,17 @@ pub struct TooltipConfig {
 
 impl TooltipConfig {
     pub const DEFAULT_FORMAT: &str = r"GPU: {gpu_utilization}%
-MEM USED: {mem_used}/{mem_total} MiB ({mem_utilization}%)
+MEM USED: {mem_used:MiB.0}/{mem_total:MiB} MiB ({mem_utilization}%)
 MEM R/W: {mem_rw}%
 DEC: {decoder_utilization}%
 ENC: {encoder_utilization}%
-TEMP: {temperature}°C
-POWER: {power}W
+TEMP: {temperature:c}°C
+POWER: {power:w}W
 PSTATE: {p_state}
 PLEVEL: {p_level}
 FAN SPEED: {fan_speed}%
-TX: {tx} MiB/s
-RX: {rx} MiB/s";
+TX: {tx:MiB.3} MiB/s
+RX: {rx:MiB.3} MiB/s";
 
     pub fn format(&self) -> &str {
         self.format.as_deref().unwrap_or(Self::DEFAULT_FORMAT)
