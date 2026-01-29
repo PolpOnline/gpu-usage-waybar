@@ -6,8 +6,15 @@ use nvml_wrapper::{
     enum_wrappers::device::{PcieUtilCounter, PerformanceState, TemperatureSensor},
 };
 use procfs::process::{FDTarget, all_processes};
+use uom::si::{
+    f32::Information,
+    f32::Power,
+    information::{byte, kilobyte},
+    power::milliwatt,
+    thermodynamic_temperature::degree_celsius,
+};
 
-use crate::gpu_status::{GpuStatus, GpuStatusData, PState};
+use crate::gpu_status::{GpuStatus, GpuStatusData, PState, Temperature};
 
 pub struct NvidiaGpuStatus<'a> {
     device: Device<'a>,
@@ -63,7 +70,7 @@ fn is_powered_on(bus_id: &str) -> Result<bool> {
 ///
 /// # References
 ///
-/// https://wiki.archlinux.org/title/PRIME#NVIDIA
+/// <https://wiki.archlinux.org/title/PRIME#NVIDIA>
 fn has_running_processes() -> bool {
     let procs = all_processes().expect("Can't read /proc");
 
@@ -109,11 +116,13 @@ impl NvidiaGpuStatus<'_> {
         GpuStatusData {
             powered_on: true,
             has_running_processes: true,
-            gpu_utilization: utilization_rates.clone().map(|u| u.gpu as u8),
+            gpu_utilization: utilization_rates.as_ref().map(|u| u.gpu as u8),
             mem_used: memory_info_in_bytes
-                .clone()
-                .map(|m| m.used as f64 / 1024f64 / 1024f64), // convert to MiB from B
-            mem_total: memory_info_in_bytes.map(|m| m.total as f64 / 1024f64 / 1024f64),
+                .as_ref()
+                .map(|m| Information::new::<byte>(m.used as f32)),
+            mem_total: memory_info_in_bytes
+                .as_ref()
+                .map(|m| Information::new::<byte>(m.total as f32)),
             mem_rw: utilization_rates.map(|u| u.memory as u8),
             decoder_utilization: device
                 .decoder_utilization()
@@ -126,19 +135,21 @@ impl NvidiaGpuStatus<'_> {
             temperature: device
                 .temperature(TemperatureSensor::Gpu)
                 .ok()
-                .map(|t| t as u8),
-            power: device.power_usage().ok().map(|p| p as f64 / 1000f64), /* convert to W
-                                                                           * from mW */
+                .map(|t| Temperature::new::<degree_celsius>(t as f32)),
+            power: device
+                .power_usage()
+                .ok()
+                .map(|p| Power::new::<milliwatt>(p as f32)),
             p_state: device.performance_state().ok().map(|p| p.into()),
             fan_speed: device.fan_speed(0u32).ok().map(|f| f as u8),
             tx: device
                 .pcie_throughput(PcieUtilCounter::Send)
                 .ok()
-                .map(|t| t as f64 / 1000f64), // convert to MiB/s from KiB/s
+                .map(|t| Information::new::<kilobyte>(t as f32)),
             rx: device
                 .pcie_throughput(PcieUtilCounter::Receive)
                 .ok()
-                .map(|t| t as f64 / 1000f64),
+                .map(|t| Information::new::<kilobyte>(t as f32)),
             ..Default::default()
         }
     }

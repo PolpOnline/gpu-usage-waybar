@@ -64,17 +64,7 @@ pub struct Args {
     /// The format you want to display for `tooltip`.
     /// For example,
     /// "GPU: {gpu_utilization}%\n
-    /// MEM USED: {mem_used}/{mem_total} MiB ({mem_utilization}%)\n
-    /// MEM R/W: {mem_rw}%\n
-    /// DEC: {decoder_utilization}%\n
-    /// ENC: {encoder_utilization}%\n
-    /// TEMP: {temperature}°C\n
-    /// POWER: {power}W\n
-    /// PSTATE: {p_state}\n
-    /// PLEVEL: {p_level}\n
-    /// FAN SPEED: {fan_speed}%\n
-    /// TX: {tx} MiB/s\n
-    /// RX: {rx} MiB/s"
+    /// MEM USED: {mem_used:MiB}/{mem_total:MiB} MiB ({mem_utilization}%)"
     #[arg(long)]
     tooltip_format: Option<String>,
 }
@@ -101,8 +91,8 @@ fn main() -> Result<()> {
         config.tooltip.retain_lines_with_values(&gpu_status_data);
     }
 
-    let mut text_state = State::from_format(&config.text.format);
-    let mut tooltip_state = State::from_format(config.tooltip.format());
+    let mut text_state = State::try_from_format(&config.text.format)?;
+    let mut tooltip_state = State::try_from_format(config.tooltip.format())?;
 
     let update_interval = Duration::from_millis(config.general.interval);
 

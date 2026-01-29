@@ -1,11 +1,12 @@
-use std::borrow::Cow;
-use std::str::FromStr;
-
 use amdgpu_sysfs::gpu_handle::PerformanceLevel;
 use color_eyre::eyre::Result;
+use std::fmt::{Display, Write};
 use strum::Display;
+use uom::si::{f32::Information, f32::Power};
 
-use crate::formatter::{Chunk, Field, State};
+use crate::formatter::{self, fields::*, units::*, *};
+
+pub type Temperature = uom::si::f32::ThermodynamicTemperature;
 
 #[derive(Default)]
 pub struct GpuStatusData {
@@ -15,36 +16,37 @@ pub struct GpuStatusData {
     pub(crate) powered_on: bool,
     /// GPU utilization in percent.
     pub(crate) gpu_utilization: Option<u8>,
-    /// Memory used in MiB.
-    pub(crate) mem_used: Option<f64>,
-    /// Total memory in MiB.
-    pub(crate) mem_total: Option<f64>,
+    /// Memory used.
+    pub(crate) mem_used: Option<Information>,
+    /// Total memory.
+    pub(crate) mem_total: Option<Information>,
     /// Memory data bus utilization in percent.
     pub(crate) mem_rw: Option<u8>,
     /// Decoder utilization in percent.
     pub(crate) decoder_utilization: Option<u8>,
     /// Encoder utilization in percent.
     pub(crate) encoder_utilization: Option<u8>,
-    /// Temperature in degrees Celsius.
-    pub(crate) temperature: Option<u8>,
-    /// Power usage in Watts.
-    pub(crate) power: Option<f64>,
+    /// Temperature.
+    pub(crate) temperature: Option<Temperature>,
+    /// Power usage.
+    pub(crate) power: Option<Power>,
     /// (NVIDIA) Performance state.
     pub(crate) p_state: Option<PState>,
     /// (AMD) Performance Level
     pub(crate) p_level: Option<PerformanceLevel>,
     /// Fan speed in percent.
     pub(crate) fan_speed: Option<u8>,
-    /// PCIe TX throughput in MiB/s.
-    pub(crate) tx: Option<f64>,
-    /// PCIe RX throughput in MiB/s.
-    pub(crate) rx: Option<f64>,
+    /// PCIe TX throughput per second.
+    pub(crate) tx: Option<Information>,
+    /// PCIe RX throughput per second.
+    pub(crate) rx: Option<Information>,
 }
 
 impl GpuStatusData {
     pub(crate) fn compute_mem_usage(&self) -> Option<u8> {
         if let (Some(mem_used), Some(mem_total)) = (self.mem_used, self.mem_total) {
-            Some((mem_used / mem_total * 100f64).round() as u8)
+            let ratio: f32 = (mem_used / mem_total).into();
+            Some((ratio * 100.0).round() as u8)
         } else {
             None
         }
@@ -59,7 +61,7 @@ impl GpuStatusData {
             return "Idle";
         }
 
-        self.assemble(state);
+        state.assemble(self);
         &state.buffer
     }
 
@@ -72,58 +74,106 @@ impl GpuStatusData {
             return "GPU idle";
         }
 
-        self.assemble(state);
+        state.assemble(self);
         &state.buffer
     }
 
-    pub fn get_field_to_string(&self, field: Field) -> Option<String> {
-        // Local macro to reduce boilerplate
-        macro_rules! s {
+    /// Write `field` value to `buffer`.
+    ///
+    /// - Writes "N/A" if `field` is [Field::Unknown].
+    /// - Returns [WriteFieldError::FieldIsNone] if `field` is `None`.
+    pub fn write_field(&self, field: Field, buffer: &mut String) -> Result<(), WriteFieldError> {
+        let scan_end_index = buffer.len();
+
+        macro_rules! u {
+            ($val:expr, $unit:expr, $precision:expr) => {{
+                let v = $val.ok_or(WriteFieldError::FieldIsNone)?;
+                let v = $unit.compute(v);
+
+                match $precision {
+                    Some(precision) => write!(buffer, "{:.*}", precision, v).unwrap(),
+                    None => write!(buffer, "{v}").unwrap(),
+                }
+            }};
+        }
+
+        match field {
+            Field::Simple(field) => self.write_simple_field(field, buffer)?,
+            Field::Mem {
+                field,
+                unit,
+                precision,
+            } => u!(self.get_mem_field(field), unit, precision),
+            Field::Temperature { unit, precision } => u!(self.temperature, unit, precision),
+            Field::Power { unit, precision } => u!(self.power, unit, precision),
+            Field::Unknown => buffer.push_str("N/A"),
+        };
+
+        formatter::trim_trailing_zeros(buffer, scan_end_index);
+
+        Ok(())
+    }
+
+    /// Returns `true` if the field is [Field::Unknown] or the corresponding value is `None`.
+    pub fn is_field_unavailable(&self, field: Field) -> bool {
+        match field {
+            Field::Unknown => true,
+            Field::Simple(field) => self.get_simple_field_display(field).is_none(),
+            Field::Mem {
+                field,
+                unit: _,
+                precision: _,
+            } => self.get_mem_field(field).is_none(),
+            Field::Temperature {
+                unit: _,
+                precision: _,
+            } => self.temperature.is_none(),
+            Field::Power {
+                unit: _,
+                precision: _,
+            } => self.power.is_none(),
+        }
+    }
+
+    fn get_simple_field_display(&self, field: SimpleField) -> Option<SimpleDisplay> {
+        macro_rules! d {
             ($val:expr) => {
-                $val.map(|v| v.to_string())
+                $val.map(SimpleDisplay::U8)
             };
         }
 
         match field {
-            Field::GpuUtilization => s!(self.gpu_utilization),
-            Field::MemUsed => s!(self.mem_used.map(|v| v.round() as u64)),
-            Field::MemTotal => s!(self.mem_total.map(|v| v.round() as u64)),
-            Field::MemRw => s!(self.mem_rw),
-            Field::MemUtilization => s!(self.compute_mem_usage()),
-            Field::DecoderUtilization => s!(self.decoder_utilization),
-            Field::EncoderUtilization => s!(self.encoder_utilization),
-            Field::Temperature => s!(self.temperature),
-            Field::Power => s!(self.power),
-            Field::PState => s!(self.p_state),
-            Field::PLevel => s!(self.p_level),
-            Field::FanSpeed => s!(self.fan_speed),
-            Field::Tx => s!(self.tx),
-            Field::Rx => s!(self.rx),
+            SimpleField::GpuUtilization => d!(self.gpu_utilization),
+            SimpleField::MemRw => d!(self.mem_rw),
+            SimpleField::MemUtilization => d!(self.compute_mem_usage()),
+            SimpleField::DecoderUtilization => d!(self.decoder_utilization),
+            SimpleField::EncoderUtilization => d!(self.encoder_utilization),
+            SimpleField::PState => self.p_state.map(SimpleDisplay::PState),
+            SimpleField::PLevel => self.p_level.map(SimpleDisplay::PLevel),
+            SimpleField::FanSpeed => d!(self.fan_speed),
         }
     }
 
-    pub fn is_field_unavailable(&self, name: &str) -> bool {
-        Field::from_str(name)
-            .ok()
-            .and_then(|f| self.get_field_to_string(f))
-            .is_none()
+    fn write_simple_field(
+        &self,
+        field: SimpleField,
+        buffer: &mut String,
+    ) -> Result<(), WriteFieldError> {
+        if let Some(field_display) = self.get_simple_field_display(field) {
+            write!(buffer, "{field_display}").unwrap();
+        } else {
+            return Err(WriteFieldError::FieldIsNone);
+        }
+
+        Ok(())
     }
 
-    fn assemble(&self, state: &mut State) {
-        state.buffer.clear();
-
-        for chunk in &state.chunks {
-            match chunk {
-                Chunk::Static(s) => state.buffer.push_str(s),
-                Chunk::Variable(field) => {
-                    let s = field
-                        .and_then(|f| self.get_field_to_string(f))
-                        .map(Cow::Owned)
-                        .unwrap_or(Cow::Borrowed("N/A"));
-
-                    state.buffer.push_str(&s);
-                }
-            }
+    fn get_mem_field(&self, field: MemField) -> Option<Information> {
+        match field {
+            MemField::MemUsed => self.mem_used,
+            MemField::MemTotal => self.mem_total,
+            MemField::Tx => self.tx,
+            MemField::Rx => self.rx,
         }
     }
 }
@@ -157,4 +207,72 @@ pub(crate) enum PState {
     P15,
     #[default]
     Unknown,
+}
+
+#[derive(Debug)]
+pub enum WriteFieldError {
+    FieldIsNone,
+}
+
+enum SimpleDisplay {
+    U8(u8),
+    PState(PState),
+    PLevel(PerformanceLevel),
+}
+
+impl Display for SimpleDisplay {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SimpleDisplay::U8(v) => write!(f, "{v}"),
+            SimpleDisplay::PState(v) => write!(f, "{v}"),
+            SimpleDisplay::PLevel(v) => write!(f, "{v}"),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use uom::si::thermodynamic_temperature::degree_celsius;
+
+    use super::*;
+
+    #[test]
+    fn test_write_field_precision() {
+        let data = GpuStatusData {
+            temperature: Some(Temperature::new::<degree_celsius>(35.12345)),
+            ..Default::default()
+        };
+        let mut buf = String::new();
+
+        data.write_field(
+            Field::Temperature {
+                unit: TemperatureUnit::Celsius,
+                precision: Some(2),
+            },
+            &mut buf,
+        )
+        .unwrap();
+
+        assert_eq!(buf, "35.12");
+    }
+
+    #[test]
+    fn test_write_field_precision_zero() {
+        let data = GpuStatusData {
+            temperature: Some(Temperature::new::<degree_celsius>(35.12345)),
+            ..Default::default()
+        };
+        let mut buf = String::new();
+
+        data.write_field(
+            Field::Temperature {
+                unit: TemperatureUnit::Celsius,
+                precision: Some(0),
+            },
+            &mut buf,
+        )
+        .unwrap();
+
+        assert_eq!(buf, "35");
+    }
 }
