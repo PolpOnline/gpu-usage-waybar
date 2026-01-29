@@ -70,7 +70,7 @@ fn is_powered_on(bus_id: &str) -> Result<bool> {
 ///
 /// # References
 ///
-/// https://wiki.archlinux.org/title/PRIME#NVIDIA
+/// <https://wiki.archlinux.org/title/PRIME#NVIDIA>
 fn has_running_processes() -> bool {
     let procs = all_processes().expect("Can't read /proc");
 
