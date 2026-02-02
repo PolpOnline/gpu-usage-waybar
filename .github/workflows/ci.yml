@@ -15,7 +15,7 @@ jobs:
       - name: Run Tests
         run: cargo test
       - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: gpu-usage-waybar
           path: target/release/gpu-usage-waybar
