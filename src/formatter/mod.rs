@@ -1,12 +1,11 @@
-pub mod fields;
 pub mod units;
 
 use regex::Regex;
 use std::{fmt::Debug, str::FromStr};
 
-use crate::{
-    formatter::fields::*,
-    gpu_status::{GpuStatusData, WriteFieldError},
+use crate::gpu_status::{
+    GpuStatusData, WriteFieldError,
+    fields::{Field, UnitParseError},
 };
 
 #[derive(Debug, PartialEq)]
@@ -113,9 +112,8 @@ fn parse(format: &str) -> Result<Vec<Chunk>, UnitParseError> {
 
 #[cfg(test)]
 mod tests {
-    use crate::formatter::units::MemUnit;
-
     use super::*;
+    use crate::{formatter::units::MemUnit, gpu_status::fields::*};
 
     #[test]
     fn test_parse() {

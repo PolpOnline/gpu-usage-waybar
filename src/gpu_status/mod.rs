@@ -1,10 +1,13 @@
+pub mod fields;
+
+use crate::gpu_status::fields::*;
 use amdgpu_sysfs::gpu_handle::PerformanceLevel;
 use color_eyre::eyre::Result;
 use std::fmt::{Display, Write};
 use strum::Display;
 use uom::si::{f32::Information, f32::Power};
 
-use crate::formatter::{self, fields::*, units::*, *};
+use crate::formatter::{self, units::*, *};
 
 pub type Temperature = uom::si::f32::ThermodynamicTemperature;
 
@@ -232,6 +235,7 @@ impl Display for SimpleDisplay {
 
 #[cfg(test)]
 mod tests {
+    use crate::gpu_status::fields::Field;
     use uom::si::thermodynamic_temperature::degree_celsius;
 
     use super::*;

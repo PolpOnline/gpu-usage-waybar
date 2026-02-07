@@ -1,12 +1,13 @@
 use std::str::FromStr;
 
+use crate::gpu_status::fields::Field;
 use color_eyre::Result;
 use serde::Deserialize;
 use smart_default::SmartDefault;
 
 use crate::{
     Args,
-    formatter::{self, fields::Field},
+    formatter::{self},
     gpu_status::GpuStatusData,
 };
 
