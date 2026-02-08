@@ -37,7 +37,7 @@ impl FromStr for Field {
 
     /// Parses a string into a [Field].
     ///
-    /// The string can be in the form `p_state` for a [SimpleField], which does not
+    /// The string can be in the form `p_state`, which does not
     /// require a unit, or `temperature:c` when a unit must be specified. The colon
     /// separates the field name and the unit name. Users can specify decimal places to
     /// display in the form as `temperature:f.2`, which means to display two decimal places.
@@ -46,7 +46,7 @@ impl FromStr for Field {
     ///
     /// # Errors
     ///
-    /// If `field` is not a [SimpleField] and no colon is found in the string,
+    /// If the field requires a unit and no colon is found in the string,
     /// returns [UnitParseError::NoUnit].
     ///
     /// If parsing the unit fails, returns [UnitParseError::Memory],
