@@ -88,14 +88,6 @@ impl GpuStatus for AmdGpuStatus {
             .get_power_force_performance_level()
             .map_err(|_| GetFieldError::Unavailable)
     }
-
-    fn is_powered_on(&self) -> bool {
-        true
-    }
-
-    fn has_running_processes(&self) -> bool {
-        true //TODO: why true?
-    }
 }
 
 type AmdGpuHandle = amdgpu_sysfs::gpu_handle::GpuHandle;

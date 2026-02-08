@@ -31,11 +31,13 @@ pub trait GpuStatus {
     }
     /// Whether GPU is powered on at the PCI level.
     fn is_powered_on(&self) -> bool {
+        // default true so GpuHandle::get_text and GpuHandle::get_tooltip does not skip
         true
     }
     /// Whether any process is using GPU.
     fn has_running_processes(&self) -> bool {
-        true //TODO: why true?
+        // default true so GpuHandle::get_text and GpuHandle::get_tooltip does not skip
+        true
     }
 }
 
@@ -103,9 +105,16 @@ impl GpuHandle {
             }};
         }
 
-        // TODO: reorder
         match field {
             Field::U8(field) => write!(buffer, "{}", self.data.get_u8_field(field)?).unwrap(),
+            Field::PState => write!(buffer, "{}", self.data.get_pstate()?).unwrap(),
+            Field::PLevel => write!(buffer, "{}", self.data.get_plevel()?).unwrap(),
+            Field::MemUtilization => write!(
+                buffer,
+                "{}",
+                self.compute_mem_usage().ok_or(GetFieldError::Unavailable)?
+            )
+            .unwrap(),
             Field::Mem {
                 field,
                 unit,
@@ -117,14 +126,6 @@ impl GpuHandle {
             Field::Power { unit, precision } => {
                 write_unit!(self.data.get_power()?, unit, precision)
             }
-            Field::PState => write!(buffer, "{}", self.data.get_pstate()?).unwrap(),
-            Field::PLevel => write!(buffer, "{}", self.data.get_plevel()?).unwrap(),
-            Field::MemUtilization => write!(
-                buffer,
-                "{}",
-                self.compute_mem_usage().ok_or(GetFieldError::Unavailable)?
-            )
-            .unwrap(),
             Field::Unknown => buffer.push_str("N/A"),
         };
 
