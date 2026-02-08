@@ -18,7 +18,7 @@ use serde::Serialize;
 use crate::{
     amd::{AmdGpuStatus, AmdSysFS},
     formatter::State,
-    gpu_status::{GpuStatus, GpuStatusData},
+    gpu_status::GpuHandle,
     nvidia::NvidiaGpuStatus,
 };
 
@@ -78,17 +78,15 @@ fn main() -> Result<()> {
 
     config.merge_args_into_config(&args)?;
 
-    let gpu_status_handler: Box<dyn GpuStatus> = match get_instance() {
-        Instance::Nvml(nvml) => Box::new(NvidiaGpuStatus::new(nvml)?),
-        Instance::Amd(amd_sys_fs) => Box::new(AmdGpuStatus::new(amd_sys_fs)?),
+    let gpu_status_handle = match get_instance() {
+        Instance::Nvml(nvml) => GpuHandle::new(Box::new(NvidiaGpuStatus::new(nvml)?)),
+        Instance::Amd(amd_sys_fs) => GpuHandle::new(Box::new(AmdGpuStatus::new(amd_sys_fs))),
     };
 
     // If the the user didn't set a custom tooltip format,
     // automatically hide any unavailable fields.
     if !config.tooltip.is_format_set() {
-        // Fetch the data once to determine which fields are available
-        let gpu_status_data = gpu_status_handler.compute_force()?;
-        config.tooltip.retain_lines_with_values(&gpu_status_data);
+        config.tooltip.retain_lines_with_values(&gpu_status_handle);
     }
 
     let mut text_state = State::try_from_format(&config.text.format)?;
@@ -99,9 +97,7 @@ fn main() -> Result<()> {
     let mut stdout_lock = stdout().lock();
 
     loop {
-        let gpu_status_data = gpu_status_handler.compute()?;
-
-        let output = format_output(&gpu_status_data, &mut text_state, &mut tooltip_state);
+        let output = format_output(&gpu_status_handle, &mut text_state, &mut tooltip_state);
 
         writeln!(&mut stdout_lock, "{}", sonic_rs::to_string(&output)?)?;
 
@@ -110,13 +106,13 @@ fn main() -> Result<()> {
 }
 
 fn format_output<'t, 'u>(
-    gpu_status: &GpuStatusData,
+    handle: &GpuHandle,
     text_state: &'t mut State,
     tooltip_state: &'u mut State,
 ) -> OutputFormat<'t, 'u> {
     OutputFormat {
-        text: gpu_status.get_text(text_state),
-        tooltip: gpu_status.get_tooltip(tooltip_state),
+        text: handle.get_text(text_state),
+        tooltip: handle.get_tooltip(tooltip_state),
     }
 }
 

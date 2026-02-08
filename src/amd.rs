@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use amdgpu_sysfs::{gpu_handle::GpuHandle, hw_mon::HwMon};
+use amdgpu_sysfs::gpu_handle::PerformanceLevel;
 use color_eyre::eyre::{Result, eyre};
 use regex::Regex;
 use uom::si::{
@@ -8,24 +8,57 @@ use uom::si::{
     thermodynamic_temperature::degree_celsius,
 };
 
-use crate::gpu_status::{GpuStatus, GpuStatusData, Temperature};
+use crate::gpu_status::{GetFieldError, fields::*};
+use crate::gpu_status::{GpuStatus, Temperature};
 
 pub struct AmdGpuStatus {
     amd_sys_fs: &'static AmdSysFS,
 }
 
 impl AmdGpuStatus {
-    pub const fn new(amd_sys_fs: &'static AmdSysFS) -> Result<Self> {
-        Ok(Self { amd_sys_fs })
+    pub const fn new(amd_sys_fs: &'static AmdSysFS) -> Self {
+        Self { amd_sys_fs }
+    }
+    fn fan_percentage(&self) -> Result<u8, amdgpu_sysfs::error::Error> {
+        let handle = &self.amd_sys_fs.gpu_handle;
+        let hw_mon = &handle.hw_monitors[0];
+        let current_rpm = hw_mon.get_fan_current()? as f32;
+        let max_rpm = hw_mon.get_fan_max()? as f32;
+
+        Ok((current_rpm / max_rpm * 100.0).round().clamp(0.0, 100.0) as u8)
     }
 }
 
 impl GpuStatus for AmdGpuStatus {
-    fn compute(&self) -> Result<GpuStatusData> {
-        let gpu_handle = &self.amd_sys_fs.gpu_handle;
-        let hw_mon = &gpu_handle.hw_monitors[0];
+    fn get_u8_field(&self, field: U8Field) -> Result<u8, GetFieldError> {
+        let handle = &self.amd_sys_fs.gpu_handle;
+        let maybe_val = match field {
+            U8Field::GpuUtilization => handle.get_busy_percent().ok(),
+            U8Field::FanSpeed => self.fan_percentage().ok(),
+            _ => return Err(GetFieldError::BrandUnsupported),
+        };
 
+        maybe_val.ok_or(GetFieldError::Unavailable)
+    }
+
+    fn get_mem_field(&self, field: MemField) -> Result<Information, GetFieldError> {
+        let handle = &self.amd_sys_fs.gpu_handle;
+        let maybe_val = match field {
+            MemField::MemUsed => handle.get_used_vram(),
+            MemField::MemTotal => handle.get_total_vram(),
+            _ => return Err(GetFieldError::BrandUnsupported),
+        };
+
+        maybe_val
+            .map(|v| Information::new::<byte>(v as f32))
+            .map_err(|_| GetFieldError::Unavailable)
+    }
+
+    fn get_temperature(&self) -> Result<Temperature, GetFieldError> {
+        let handle = &self.amd_sys_fs.gpu_handle;
+        let hw_mon = &handle.hw_monitors[0];
         let temps = hw_mon.get_temps();
+
         const TEMP_SENSOR_NAME: &str = "edge";
         let temp = temps
             .iter()
@@ -33,37 +66,42 @@ impl GpuStatus for AmdGpuStatus {
             .ok_or(eyre!(format!(
                 "No \"{}\" temperature sensor found",
                 TEMP_SENSOR_NAME
-            )))?
-            .1
-            .current;
+            )))
+            .map_err(|_| GetFieldError::Unavailable)?;
+        let temp = temp.1.current.ok_or(GetFieldError::Unavailable)?;
 
-        Ok(GpuStatusData {
-            powered_on: true,
-            has_running_processes: true, /* TODO: temporarily set to true until AMD GPU process
-                                          * detection is implemented */
-            gpu_utilization: gpu_handle.get_busy_percent().ok(),
-            mem_used: gpu_handle
-                .get_used_vram()
-                .ok()
-                .map(|v| Information::new::<byte>(v as f32)),
-            mem_total: gpu_handle
-                .get_total_vram()
-                .ok()
-                .map(|v| Information::new::<byte>(v as f32)),
-            temperature: temp.map(Temperature::new::<degree_celsius>),
-            power: hw_mon
-                .get_power_input()
-                .ok()
-                .map(|v| Power::new::<watt>(v as f32)),
-            p_level: gpu_handle.get_power_force_performance_level().ok(),
-            fan_speed: fan_percentage(hw_mon).ok(),
-            ..Default::default()
-        })
+        Ok(Temperature::new::<degree_celsius>(temp))
+    }
+
+    fn get_power(&self) -> Result<Power, GetFieldError> {
+        let handle = &self.amd_sys_fs.gpu_handle;
+        let hw_mon = &handle.hw_monitors[0];
+        hw_mon
+            .get_power_input()
+            .map(|v| Power::new::<watt>(v as f32))
+            .map_err(|_| GetFieldError::Unavailable)
+    }
+
+    fn get_plevel(&self) -> Result<PerformanceLevel, GetFieldError> {
+        let handle = &self.amd_sys_fs.gpu_handle;
+        handle
+            .get_power_force_performance_level()
+            .map_err(|_| GetFieldError::Unavailable)
+    }
+
+    fn is_powered_on(&self) -> bool {
+        true
+    }
+
+    fn has_running_processes(&self) -> bool {
+        true //TODO: why true?
     }
 }
 
+type AmdGpuHandle = amdgpu_sysfs::gpu_handle::GpuHandle;
+
 pub struct AmdSysFS {
-    gpu_handle: GpuHandle,
+    gpu_handle: AmdGpuHandle,
 }
 
 impl AmdSysFS {
@@ -74,7 +112,7 @@ impl AmdSysFS {
             return Err(eyre!("No AMD GPU found"));
         }
 
-        let gpu_handle = GpuHandle::new_from_path(drm_gpus[0].clone())?;
+        let gpu_handle = AmdGpuHandle::new_from_path(drm_gpus[0].clone())?;
 
         Ok(Self { gpu_handle })
     }
@@ -105,11 +143,4 @@ impl AmdSysFS {
 
         Ok(drm_gpus)
     }
-}
-
-fn fan_percentage(hw_mon: &HwMon) -> Result<u8, amdgpu_sysfs::error::Error> {
-    let current_rpm = hw_mon.get_fan_current()? as f32;
-    let max_rpm = hw_mon.get_fan_max()? as f32;
-
-    Ok((current_rpm / max_rpm * 100.0).round().clamp(0.0, 100.0) as u8)
 }

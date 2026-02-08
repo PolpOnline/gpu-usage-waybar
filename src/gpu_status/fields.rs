@@ -9,7 +9,7 @@ use crate::formatter::units::*;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Field {
-    Simple(SimpleField),
+    U8(U8Field),
     Mem {
         field: MemField,
         unit: MemUnit,
@@ -23,6 +23,12 @@ pub enum Field {
         unit: PowerUnit,
         precision: Option<usize>,
     },
+    /// (NVIDIA) Performance state.
+    PState,
+    /// (AMD) Performance Level
+    PLevel,
+    /// Memory utilization in percent computed as [MemField::MemUsed] / [MemField::MemTotal].
+    MemUtilization,
     Unknown,
 }
 
@@ -64,27 +70,35 @@ impl FromStr for Field {
             }};
         }
 
-        let field = if let Ok(field) = SimpleField::from_str(format.field) {
-            Field::Simple(field)
-        } else if let Ok(field) = MemField::from_str(format.field) {
-            let (unit, precision) = parse_unit_and_precision!(MemUnit, UnitParseError::Memory);
-
-            Field::Mem {
-                field,
-                unit,
-                precision,
+        let field = match format.field {
+            "p_level" => Field::PLevel,
+            "p_state" => Field::PState,
+            "mem_utilization" => Field::MemUtilization,
+            "power" => {
+                let (unit, precision) = parse_unit_and_precision!(PowerUnit, UnitParseError::Power);
+                Field::Power { unit, precision }
             }
-        } else if format.field == "temperature" {
-            let (unit, precision) =
-                parse_unit_and_precision!(TemperatureUnit, UnitParseError::Temperature);
+            "temperature" => {
+                let (unit, precision) =
+                    parse_unit_and_precision!(TemperatureUnit, UnitParseError::Temperature);
+                Field::Temperature { unit, precision }
+            }
+            s => {
+                if let Ok(f) = MemField::from_str(s) {
+                    let (unit, precision) =
+                        parse_unit_and_precision!(MemUnit, UnitParseError::Memory);
 
-            Field::Temperature { unit, precision }
-        } else if format.field == "power" {
-            let (unit, precision) = parse_unit_and_precision!(PowerUnit, UnitParseError::Power);
-
-            Field::Power { unit, precision }
-        } else {
-            Field::Unknown
+                    Field::Mem {
+                        field: f,
+                        unit,
+                        precision,
+                    }
+                } else {
+                    U8Field::from_str(s)
+                        .map(Field::U8)
+                        .unwrap_or(Field::Unknown)
+                }
+            }
         };
 
         Ok(field)
@@ -93,23 +107,29 @@ impl FromStr for Field {
 
 #[derive(Debug, Clone, Copy, PartialEq, Display, EnumString)]
 #[strum(serialize_all = "snake_case")]
-pub enum SimpleField {
+pub enum U8Field {
+    /// GPU utilization in percent.
     GpuUtilization,
+    /// Memory data bus utilization in percent.
     MemRw,
-    MemUtilization,
+    /// Decoder utilization in percent.
     DecoderUtilization,
+    /// Encoder utilization in percent.
     EncoderUtilization,
-    PState,
-    PLevel,
+    /// Fan speed in percent.
     FanSpeed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Display, EnumString)]
 #[strum(serialize_all = "snake_case")]
 pub enum MemField {
+    /// Memory used.
     MemUsed,
+    /// Total memory.
     MemTotal,
+    /// PCIe TX throughput per second.
     Tx,
+    /// PCIe RX throughput per second.
     Rx,
 }
 

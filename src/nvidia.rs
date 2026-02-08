@@ -1,11 +1,12 @@
 use std::fs;
 
-use color_eyre::eyre::Result;
+use color_eyre::eyre;
 use nvml_wrapper::{
     Device, Nvml,
     enum_wrappers::device::{PcieUtilCounter, PerformanceState, TemperatureSensor},
 };
 use procfs::process::{FDTarget, all_processes};
+use strum::Display;
 use uom::si::{
     f32::Information,
     f32::Power,
@@ -14,7 +15,8 @@ use uom::si::{
     thermodynamic_temperature::degree_celsius,
 };
 
-use crate::gpu_status::{GpuStatus, GpuStatusData, PState, Temperature};
+use crate::gpu_status::{GetFieldError, fields::*};
+use crate::gpu_status::{GpuStatus, Temperature};
 
 pub struct NvidiaGpuStatus<'a> {
     device: Device<'a>,
@@ -22,7 +24,7 @@ pub struct NvidiaGpuStatus<'a> {
 }
 
 impl NvidiaGpuStatus<'_> {
-    pub fn new(instance: &'static Nvml) -> Result<Self> {
+    pub fn new(instance: &'static Nvml) -> eyre::Result<Self> {
         let device = instance.device_by_index(0)?;
 
         // Query PCI info just once
@@ -34,169 +36,163 @@ impl NvidiaGpuStatus<'_> {
     }
 }
 
-enum GpuPowerState {
-    Off,
-    OnNoProcess,
-    PoweredOnInUse,
-}
-
-fn is_powered_on(bus_id: &str) -> Result<bool> {
-    let path = format!("/sys/bus/pci/devices/{bus_id}/power/runtime_status");
-    let status = match fs::read_to_string(path) {
-        Ok(s) => s,
-        Err(_) => {
-            // Sometimes the runtime status file doesn't exist or doesn't contain the
-            // expected value
-            return Ok(true);
-        }
-    };
-    let status = status.trim().to_string();
-    let powered_on = status == "active";
-    Ok(powered_on)
-}
-
-/// Returns `true` if there is any process currently using GPU 0.
-///
-/// This function checks whether `/dev/nvidia0` is opened by any process
-/// other than the current one without waking up the GPU by scanning
-/// `/proc/*/fd`.
-///
-/// # Note
-///
-/// Do not use
-/// [nvml_wrapper::device::Device::running_compute_processes_count] or
-/// [nvml_wrapper::device::Device::running_graphics_processes_count]
-/// as they wake up the GPU.
-///
-/// # References
-///
-/// <https://wiki.archlinux.org/title/PRIME#NVIDIA>
-fn has_running_processes() -> bool {
-    let procs = all_processes().expect("Can't read /proc");
-
-    for proc in procs.flatten() {
-        if proc.pid == std::process::id() as i32 {
-            continue;
-        }
-
-        let Ok(fds) = proc.fd() else {
-            continue;
+impl GpuStatus for NvidiaGpuStatus<'_> {
+    fn get_u8_field(&self, field: U8Field) -> Result<u8, GetFieldError> {
+        let maybe_val = match field {
+            U8Field::GpuUtilization => self
+                .device
+                .utilization_rates()
+                .as_ref()
+                .map(|u| u.gpu as u8)
+                .ok(),
+            U8Field::MemRw => self
+                .device
+                .utilization_rates()
+                .as_ref()
+                .map(|r| r.memory as u8)
+                .ok(),
+            U8Field::DecoderUtilization => self
+                .device
+                .decoder_utilization()
+                .map(|u| u.utilization as u8)
+                .ok(),
+            U8Field::EncoderUtilization => self
+                .device
+                .encoder_utilization()
+                .map(|u| u.utilization as u8)
+                .ok(),
+            U8Field::FanSpeed => self.device.fan_speed(0u32).map(|f| f as u8).ok(),
         };
 
-        for fd in fds.flatten() {
-            if let FDTarget::Path(ref path) = fd.target
-                && path == "/dev/nvidia0"
-            {
+        maybe_val.ok_or(GetFieldError::Unavailable)
+    }
+
+    fn get_mem_field(&self, field: MemField) -> Result<Information, GetFieldError> {
+        let maybe_val = match field {
+            MemField::MemUsed => self
+                .device
+                .memory_info()
+                .as_ref()
+                .map(|m| Information::new::<byte>(m.used as f32))
+                .ok(),
+            MemField::MemTotal => self
+                .device
+                .memory_info()
+                .as_ref()
+                .map(|m| Information::new::<byte>(m.total as f32))
+                .ok(),
+            MemField::Tx => self
+                .device
+                .pcie_throughput(PcieUtilCounter::Send)
+                .map(|t| Information::new::<kilobyte>(t as f32))
+                .ok(),
+            MemField::Rx => self
+                .device
+                .pcie_throughput(PcieUtilCounter::Receive)
+                .map(|t| Information::new::<kilobyte>(t as f32))
+                .ok(),
+        };
+
+        maybe_val.ok_or(GetFieldError::Unavailable)
+    }
+
+    fn get_temperature(&self) -> Result<Temperature, GetFieldError> {
+        self.device
+            .temperature(TemperatureSensor::Gpu)
+            .map(|t| Temperature::new::<degree_celsius>(t as f32))
+            .map_err(|_| GetFieldError::Unavailable)
+    }
+
+    fn get_power(&self) -> Result<Power, GetFieldError> {
+        self.device
+            .power_usage()
+            .map(|p| Power::new::<milliwatt>(p as f32))
+            .map_err(|_| GetFieldError::Unavailable)
+    }
+
+    fn get_pstate(&self) -> Result<PState, GetFieldError> {
+        self.device
+            .performance_state()
+            .map(|p| p.into())
+            .map_err(|_| GetFieldError::Unavailable)
+    }
+
+    fn is_powered_on(&self) -> bool {
+        let path = format!("/sys/bus/pci/devices/{}/power/runtime_status", self.bus_id);
+        let status = match fs::read_to_string(path) {
+            Ok(s) => s,
+            Err(_) => {
+                // Sometimes the runtime status file doesn't exist or doesn't contain the
+                // expected value
                 return true;
             }
-        }
-    }
-
-    false
-}
-
-impl NvidiaGpuStatus<'_> {
-    fn detect_gpu_presence(&self) -> Result<GpuPowerState> {
-        if !is_powered_on(&self.bus_id)? {
-            return Ok(GpuPowerState::Off);
-        }
-
-        if !has_running_processes() {
-            return Ok(GpuPowerState::OnNoProcess);
-        }
-
-        Ok(GpuPowerState::PoweredOnInUse)
-    }
-
-    fn collect_active_gpu_stats(&self) -> GpuStatusData {
-        let device = &self.device;
-        let utilization_rates = device.utilization_rates().ok();
-        let memory_info_in_bytes = device.memory_info().ok();
-
-        GpuStatusData {
-            powered_on: true,
-            has_running_processes: true,
-            gpu_utilization: utilization_rates.as_ref().map(|u| u.gpu as u8),
-            mem_used: memory_info_in_bytes
-                .as_ref()
-                .map(|m| Information::new::<byte>(m.used as f32)),
-            mem_total: memory_info_in_bytes
-                .as_ref()
-                .map(|m| Information::new::<byte>(m.total as f32)),
-            mem_rw: utilization_rates.map(|u| u.memory as u8),
-            decoder_utilization: device
-                .decoder_utilization()
-                .ok()
-                .map(|u| u.utilization as u8),
-            encoder_utilization: device
-                .encoder_utilization()
-                .ok()
-                .map(|u| u.utilization as u8),
-            temperature: device
-                .temperature(TemperatureSensor::Gpu)
-                .ok()
-                .map(|t| Temperature::new::<degree_celsius>(t as f32)),
-            power: device
-                .power_usage()
-                .ok()
-                .map(|p| Power::new::<milliwatt>(p as f32)),
-            p_state: device.performance_state().ok().map(|p| p.into()),
-            fan_speed: device.fan_speed(0u32).ok().map(|f| f as u8),
-            tx: device
-                .pcie_throughput(PcieUtilCounter::Send)
-                .ok()
-                .map(|t| Information::new::<kilobyte>(t as f32)),
-            rx: device
-                .pcie_throughput(PcieUtilCounter::Receive)
-                .ok()
-                .map(|t| Information::new::<kilobyte>(t as f32)),
-            ..Default::default()
-        }
-    }
-}
-
-impl GpuStatus for NvidiaGpuStatus<'_> {
-    fn compute(&self) -> Result<GpuStatusData> {
-        // GPU status computation is split into two stages to avoid inadvertently
-        // waking up the NVIDIA GPU during idle periods:
-        //
-        // 1. Presence check (doesn't wake GPU):
-        //    - Uses sysfs to check PCI-level power status (`is_powered_on`).
-        //    - Scans /proc via procfs to see if any process is currently using the GPU
-        //      device node
-        //    This stage does not invoke NVML and therefore does not wake the GPU.
-        //
-        // 2. NVML collection (wake GPU):
-        //    - Only executed if the GPU is powered on and has running processes.
-        //    - Collects utilization rates, memory info, temperature, PCIe throughput,
-        //      encoder/decoder usage, fan speed, power draw, etc.
-        //    This stage gives full metrics but is gated to minimize unnecessary GPU
-        // wake-ups.
-        //
-        // By structuring the polling this way, we maintain power-awareness while
-        // still collecting full GPU metrics when the device is actively in use.
-        let gpu_status = match self.detect_gpu_presence()? {
-            GpuPowerState::Off => GpuStatusData {
-                powered_on: false,
-                has_running_processes: false,
-                ..Default::default()
-            },
-            GpuPowerState::OnNoProcess => GpuStatusData {
-                powered_on: true,
-                has_running_processes: false,
-                ..Default::default()
-            },
-            GpuPowerState::PoweredOnInUse => self.collect_active_gpu_stats(),
         };
 
-        Ok(gpu_status)
+        status.trim() == "active"
     }
 
-    fn compute_force(&self) -> Result<GpuStatusData> {
-        Ok(self.collect_active_gpu_stats())
+    /// Returns `true` if there is any process currently using GPU 0.
+    ///
+    /// This function checks whether `/dev/nvidia0` is opened by any process
+    /// other than the current one without waking up the GPU by scanning
+    /// `/proc/*/fd`.
+    ///
+    /// # Note
+    ///
+    /// Do not use
+    /// [nvml_wrapper::device::Device::running_compute_processes_count] or
+    /// [nvml_wrapper::device::Device::running_graphics_processes_count]
+    /// as they wake up the GPU.
+    ///
+    /// # References
+    ///
+    /// <https://wiki.archlinux.org/title/PRIME#NVIDIA>
+    fn has_running_processes(&self) -> bool {
+        let procs = all_processes().expect("Can't read /proc");
+
+        for proc in procs.flatten() {
+            if proc.pid == std::process::id() as i32 {
+                continue;
+            }
+
+            let Ok(fds) = proc.fd() else {
+                continue;
+            };
+
+            for fd in fds.flatten() {
+                if let FDTarget::Path(ref path) = fd.target
+                    && path == "/dev/nvidia0"
+                {
+                    return true;
+                }
+            }
+        }
+
+        false
     }
 }
 
+#[derive(Default, Display, Copy, Clone)]
+pub enum PState {
+    P0,
+    P1,
+    P2,
+    P3,
+    P4,
+    P5,
+    P6,
+    P7,
+    P8,
+    P9,
+    P10,
+    P11,
+    P12,
+    P13,
+    P14,
+    P15,
+    #[default]
+    Unknown,
+}
 impl From<PerformanceState> for PState {
     fn from(value: PerformanceState) -> Self {
         match value {

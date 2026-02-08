@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use crate::gpu_status::fields::Field;
+use crate::gpu_status::{GpuHandle, fields::Field};
 use color_eyre::Result;
 use serde::Deserialize;
 use smart_default::SmartDefault;
@@ -8,7 +8,6 @@ use smart_default::SmartDefault;
 use crate::{
     Args,
     formatter::{self},
-    gpu_status::GpuStatusData,
 };
 
 #[derive(Default, Deserialize)]
@@ -88,7 +87,7 @@ RX: {rx:MiB.3} MiB/s";
     /// This function modifies the `format` field in place.
     /// If a line contains **any** placeholder without a corresponding value
     /// in `data`, that entire line is removed from the format.
-    pub fn retain_lines_with_values(&mut self, data: &GpuStatusData) {
+    pub fn retain_lines_with_values(&mut self, handle: &GpuHandle) {
         let mut result = String::new();
         let re = formatter::get_regex();
 
@@ -96,7 +95,7 @@ RX: {rx:MiB.3} MiB/s";
             // Check if ANY field string is invalid
             let has_unavailable = re.captures_iter(line).any(|caps| {
                 let field_str = &caps[1];
-                Field::from_str(field_str).map_or(true, |f| data.is_field_unavailable(f))
+                Field::from_str(field_str).map_or(true, |f| handle.is_field_unavailable(f))
             });
 
             if has_unavailable {
@@ -114,21 +113,35 @@ RX: {rx:MiB.3} MiB/s";
 mod tests {
     use crate::{
         config::structs::TooltipConfig,
-        gpu_status::{GpuStatusData, PState},
+        gpu_status::{
+            GetFieldError, GpuHandle, GpuStatus,
+            fields::{MemField, U8Field},
+        },
+        nvidia::PState,
     };
+    use color_eyre::eyre::Result;
     use uom::si::{f32::Information, information::mebibyte};
 
     /// Test that lines with unavailable fields are dropped.
     #[test]
     fn test_retain_some_fields() {
-        let data = GpuStatusData {
-            p_state: Some(PState::P0),
-            p_level: None,
-            fan_speed: None,
-            tx: Some(Information::new::<mebibyte>(5.0)),
-            rx: Some(Information::new::<mebibyte>(6.0)),
-            ..Default::default()
-        };
+        struct Data;
+        impl GpuStatus for Data {
+            fn get_pstate(&self) -> Result<PState, GetFieldError> {
+                Ok(PState::P0)
+            }
+            fn get_mem_field(
+                &self,
+                field: crate::gpu_status::fields::MemField,
+            ) -> Result<Information, GetFieldError> {
+                match field {
+                    MemField::Tx => Ok(Information::new::<mebibyte>(5.0)),
+                    MemField::Rx => Ok(Information::new::<mebibyte>(6.0)),
+                    _ => Err(GetFieldError::BrandUnsupported),
+                }
+            }
+        }
+        let handle = GpuHandle::new(Box::new(Data));
 
         let mut config = TooltipConfig {
             format: Some(
@@ -141,7 +154,7 @@ RX: {rx:MiB.0} MiB/s"
             ),
         };
 
-        config.retain_lines_with_values(&data);
+        config.retain_lines_with_values(&handle);
 
         assert_eq!(
             config.format.unwrap(),
@@ -155,14 +168,25 @@ RX: {rx:MiB.0} MiB/s"
     /// have no value.
     #[test]
     fn test_retain_lines_with_multiple_placeholders() {
-        let data = GpuStatusData {
-            gpu_utilization: Some(50),
-            mem_used: Some(Information::new::<mebibyte>(50.0)),
-            mem_total: None, // This should cause the line to be dropped
-            p_state: Some(PState::P0),
-            p_level: None, // This should cause the line to be dropped
-            ..Default::default()
-        };
+        struct Data;
+        impl GpuStatus for Data {
+            fn get_pstate(&self) -> Result<PState, GetFieldError> {
+                Ok(PState::P0)
+            }
+            fn get_u8_field(&self, field: U8Field) -> Result<u8, GetFieldError> {
+                match field {
+                    U8Field::GpuUtilization => Ok(50),
+                    _ => Err(GetFieldError::BrandUnsupported),
+                }
+            }
+            fn get_mem_field(&self, field: MemField) -> Result<Information, GetFieldError> {
+                match field {
+                    MemField::MemUsed => Ok(Information::new::<mebibyte>(50.0)),
+                    _ => Err(GetFieldError::BrandUnsupported),
+                }
+            }
+        }
+        let handle = GpuHandle::new(Box::new(Data));
 
         let format = r"GPU: {gpu_utilization}% | MEM: {mem_utilization}%
 +PSTATE: {p_state} | PLEVEL: {p_level}";
@@ -171,7 +195,7 @@ RX: {rx:MiB.0} MiB/s"
             format: Some(format.to_string()),
         };
 
-        config.retain_lines_with_values(&data);
+        config.retain_lines_with_values(&handle);
         // Both lines should be dropped because each has at least one unavailable field
         assert_eq!(config.format, Some("".to_string()));
     }

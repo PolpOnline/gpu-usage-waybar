@@ -4,7 +4,7 @@ use regex::Regex;
 use std::{fmt::Debug, str::FromStr};
 
 use crate::gpu_status::{
-    GpuStatusData, WriteFieldError,
+    GetFieldError, GpuHandle,
     fields::{Field, UnitParseError},
 };
 
@@ -24,7 +24,7 @@ impl State {
     ///
     /// Writes `"N/A"` if a variable segment in `chunks` is [`Field::Unknown`],
     /// or if the corresponding field in `data` is `None`.
-    pub fn assemble(&mut self, data: &GpuStatusData) {
+    pub fn assemble(&mut self, handle: &GpuHandle) {
         self.buffer.clear();
 
         for chunk in &self.chunks {
@@ -33,8 +33,8 @@ impl State {
                 Chunk::Variable(field) => {
                     if matches!(
                         // write_field() writes "N/A" if field is Field::Unknown.
-                        data.write_field(*field, &mut self.buffer),
-                        Err(WriteFieldError::FieldIsNone)
+                        handle.write_field(*field, &mut self.buffer),
+                        Err(GetFieldError::Unavailable)
                     ) {
                         self.buffer.push_str("N/A");
                     }
@@ -129,11 +129,11 @@ RX: {rx:MiB.2} MiB/s";
             chunks,
             vec![
                 Chunk::Static("PSTATE: ".to_string()),
-                Chunk::Variable(Field::Simple(SimpleField::PState)),
+                Chunk::Variable(Field::PState),
                 Chunk::Static("\nPLEVEL: ".to_string()),
-                Chunk::Variable(Field::Simple(SimpleField::PLevel)),
+                Chunk::Variable(Field::PLevel),
                 Chunk::Static("\nFAN SPEED: ".to_string()),
-                Chunk::Variable(Field::Simple(SimpleField::FanSpeed)),
+                Chunk::Variable(Field::U8(U8Field::FanSpeed)),
                 Chunk::Static("%\nTX: ".to_string()),
                 Chunk::Variable(Field::Mem {
                     field: MemField::Tx,
