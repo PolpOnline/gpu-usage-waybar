@@ -53,6 +53,7 @@ impl Unit for MemUnit {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Display, EnumString)]
+#[strum(ascii_case_insensitive)]
 pub enum TemperatureUnit {
     #[strum(serialize = "c")]
     Celsius,
