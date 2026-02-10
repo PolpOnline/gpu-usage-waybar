@@ -94,7 +94,7 @@ You can also set the output format with CLI args using `--text-format` and `--to
 | `mem_utilization` | Memory utilization | % | ✅ | ✅ |
 | `decoder_utilization` | Decoder utilization | % | ❌ | ✅ |
 | `encoder_utilization` | Encoder utilization | % | ❌ | ✅ |
-| `temperature` | Temperature | °C, °F, K | ✅ | ✅ |
+| `temperature` | Temperature | c, f, k | ✅ | ✅ |
 | `power` | Power usage | w, kw | ✅ | ✅ |
 | `p_state` | (NVIDIA) Performance state | NVIDIA performance state | ❌ | ✅ |
 | `p_level` | (AMD) Performance Level | AMD performance level | ✅ | ❌ |
