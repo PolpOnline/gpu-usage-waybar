@@ -1,12 +1,10 @@
-use std::str::FromStr;
-
 use color_eyre::Result;
 use serde::Deserialize;
 use smart_default::SmartDefault;
 
 use crate::{
     Args,
-    formatter::{self, fields::Field},
+    formatter::{self, FormatSegments, fields::Field},
     gpu_status::GpuStatusData,
 };
 
@@ -94,8 +92,8 @@ RX: {rx:MiB.3} MiB/s";
         for line in self.format().split_inclusive('\n') {
             // Check if ANY field string is invalid
             let has_unavailable = re.captures_iter(line).any(|caps| {
-                let field_str = &caps[1];
-                Field::from_str(field_str).map_or(true, |f| data.is_field_unavailable(f))
+                let format_segments = unsafe { FormatSegments::from_caps(&caps) };
+                Field::try_from(format_segments).map_or(true, |f| data.is_field_unavailable(f))
             });
 
             if has_unavailable {

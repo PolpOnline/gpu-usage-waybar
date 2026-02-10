@@ -2,7 +2,7 @@ pub mod fields;
 pub mod units;
 
 use regex::Regex;
-use std::{fmt::Debug, str::FromStr};
+use std::fmt::Debug;
 
 use crate::{
     formatter::fields::*,
@@ -54,8 +54,27 @@ impl State {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct FormatSegments<'a> {
+    field: &'a str,
+    unit: Option<&'a str>,
+    precision: Option<&'a str>,
+}
+
+impl<'a> FormatSegments<'a> {
+    /// # Safety
+    /// `caps` must be the captures from [get_regex].
+    pub unsafe fn from_caps(caps: &'a regex::Captures<'_>) -> FormatSegments<'a> {
+        FormatSegments {
+            field: &caps[1],
+            unit: caps.get(2).map(|v| v.as_str()),
+            precision: caps.get(3).map(|v| v.as_str()),
+        }
+    }
+}
+
 pub fn get_regex() -> Regex {
-    Regex::new(r"\{([^}]+)}").unwrap()
+    Regex::new(r"\{(\w+)(?::(\w+)(?:\.(\d+))?)?\}").unwrap()
 }
 
 pub fn trim_trailing_zeros(buf: &mut String, scan_end_index: usize) {
@@ -81,24 +100,25 @@ pub fn trim_trailing_zeros(buf: &mut String, scan_end_index: usize) {
 
     buf.truncate(end);
 }
-
 fn parse(format: &str) -> Result<Vec<Chunk>, UnitParseError> {
     let re = get_regex();
     let mut chunks = Vec::new();
     let mut last_end = 0;
 
-    for cap in re.captures_iter(format) {
-        let m = cap.get(0).unwrap();
-        let s = &cap[1];
+    for caps in re.captures_iter(format) {
+        let m = caps.get(0).unwrap();
+        let format_segments = unsafe { FormatSegments::from_caps(&caps) };
 
         // static
-        chunks.push(Chunk::Static(format[last_end..m.start()].to_string()));
+        if m.start() > last_end {
+            chunks.push(Chunk::Static(format[last_end..m.start()].to_string()));
+        }
 
         // variable
-        let field = Field::from_str(s)?;
+        let field = Field::try_from(format_segments)?;
 
         if matches!(field, Field::Unknown) {
-            eprintln!("Warning: unknown field: {s}");
+            eprintln!("Warning: unknown field: {}", format_segments.field);
         }
 
         chunks.push(Chunk::Variable(field));
@@ -113,7 +133,7 @@ fn parse(format: &str) -> Result<Vec<Chunk>, UnitParseError> {
 
 #[cfg(test)]
 mod tests {
-    use crate::formatter::units::MemUnit;
+    use crate::formatter::units::{MemUnit, TemperatureUnit};
 
     use super::*;
 
@@ -151,6 +171,32 @@ RX: {rx:MiB.2} MiB/s";
                 Chunk::Static(" MiB/s".to_string()),
             ]
         );
+    }
+
+    #[test]
+    fn test_parse_unit() {
+        assert!(matches!(
+            parse("{temperature}"),
+            Err(UnitParseError::NoUnit)
+        ));
+
+        let field = &parse("{temperature:c}").unwrap()[0];
+        assert!(matches!(
+            field,
+            Chunk::Variable(Field::Temperature {
+                unit: TemperatureUnit::Celsius,
+                precision: None
+            })
+        ));
+
+        let field = &parse("{temperature:c.2}").unwrap()[0];
+        assert!(matches!(
+            field,
+            Chunk::Variable(Field::Temperature {
+                unit: TemperatureUnit::Celsius,
+                precision: Some(2)
+            })
+        ));
     }
 
     #[test]
