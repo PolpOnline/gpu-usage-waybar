@@ -76,6 +76,7 @@ impl Unit for TemperatureUnit {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Display, EnumString)]
+#[strum(ascii_case_insensitive)]
 pub enum PowerUnit {
     #[strum(serialize = "w")]
     Watt,
