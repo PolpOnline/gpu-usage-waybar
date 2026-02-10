@@ -1,5 +1,6 @@
 pub mod amd;
 pub mod config;
+pub mod drm;
 pub mod formatter;
 pub mod gpu_status;
 pub mod nvidia;
