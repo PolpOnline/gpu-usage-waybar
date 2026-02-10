@@ -5,7 +5,7 @@ use std::{
 };
 use strum::{Display, EnumString};
 
-use crate::formatter::units::*;
+use crate::formatter::{FormatSegments, units::*};
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Field {
@@ -32,34 +32,19 @@ pub enum Field {
     Unknown,
 }
 
-impl FromStr for Field {
-    type Err = UnitParseError;
+impl TryFrom<FormatSegments<'_>> for Field {
+    type Error = UnitParseError;
 
-    /// Parses a string into a [Field].
+    /// Parses a [FormatSegments] into a [Field].
     ///
-    /// The string can be in the form `p_state`, which does not
-    /// require a unit, or `temperature:c` when a unit must be specified. The colon
-    /// separates the field name and the unit name. Users can specify decimal places to
-    /// display in the form as `temperature:f.2`, which means to display two decimal places.
-    ///
-    /// If the field name is unrecognized, [Field::Unknown] is returned.
-    ///
-    /// # Errors
-    ///
-    /// If the field requires a unit and no colon is found in the string,
-    /// returns [UnitParseError::NoUnit].
-    ///
-    /// If parsing the unit fails, returns [UnitParseError::Memory],
-    /// [UnitParseError::Power], or [UnitParseError::Temperature].
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let format = FormatSegments::parse(s);
-
+    /// If the `segments.field` is unrecognized, [Field::Unknown] is returned.
+    fn try_from(segments: FormatSegments<'_>) -> Result<Self, Self::Error> {
         macro_rules! parse_unit_and_precision {
             ($unit_type:ty, $err_variant:path) => {{
-                let unit_name = format.unit.ok_or(UnitParseError::NoUnit)?;
+                let unit_name = segments.unit.ok_or(UnitParseError::NoUnit)?;
                 let unit = <$unit_type>::from_str(unit_name)
                     .map_err(|_| $err_variant(unit_name.to_string()))?;
-                let precision = format
+                let precision = segments
                     .precision
                     .map(|p| {
                         p.parse::<usize>()
@@ -70,7 +55,7 @@ impl FromStr for Field {
             }};
         }
 
-        let field = match format.field {
+        let field = match segments.field {
             "p_level" => Field::PLevel,
             "p_state" => Field::PState,
             "mem_utilization" => Field::MemUtilization,
@@ -83,8 +68,8 @@ impl FromStr for Field {
                     parse_unit_and_precision!(TemperatureUnit, UnitParseError::Temperature);
                 Field::Temperature { unit, precision }
             }
-            s => {
-                if let Ok(f) = MemField::from_str(s) {
+            field_name => {
+                if let Ok(f) = MemField::from_str(field_name) {
                     let (unit, precision) =
                         parse_unit_and_precision!(MemUnit, UnitParseError::Memory);
 
@@ -94,7 +79,7 @@ impl FromStr for Field {
                         precision,
                     }
                 } else {
-                    U8Field::from_str(s)
+                    U8Field::from_str(field_name)
                         .map(Field::U8)
                         .unwrap_or(Field::Unknown)
                 }
@@ -135,10 +120,15 @@ pub enum MemField {
 
 #[derive(Debug)]
 pub enum UnitParseError {
+    /// Corresponding field requires a unit, but not provided.
     NoUnit,
+    /// Error parsing precision numbers.
     Precision(String),
+    /// Error parsing memory unit.
     Memory(String),
+    /// Error parsing temperature unit.
     Temperature(String),
+    /// Error parsing power unit.
     Power(String),
 }
 
@@ -155,57 +145,3 @@ impl Display for UnitParseError {
 }
 
 impl Error for UnitParseError {}
-
-struct FormatSegments<'a> {
-    field: &'a str,
-    unit: Option<&'a str>,
-    precision: Option<&'a str>,
-}
-
-impl<'a> FormatSegments<'a> {
-    fn parse(s: &'a str) -> FormatSegments<'a> {
-        // Split field and optional unit
-        let (field, rest) = match s.split_once(':') {
-            Some((f, r)) => (f, Some(r)),
-            None => (s, None),
-        };
-
-        // Split unit and optional precision
-        let (unit, precision) = match rest {
-            Some(r) => match r.split_once('.') {
-                Some((u, p)) => (Some(u), Some(p)),
-                None => (Some(r), None),
-            },
-            None => (None, None),
-        };
-
-        Self {
-            field,
-            unit,
-            precision,
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_format_segments() {
-        let seg = FormatSegments::parse("temperature");
-        assert_eq!(seg.field, "temperature");
-        assert_eq!(seg.unit, None);
-        assert_eq!(seg.precision, None);
-
-        let seg = FormatSegments::parse("temperature:c");
-        assert_eq!(seg.field, "temperature");
-        assert_eq!(seg.unit, Some("c"));
-        assert_eq!(seg.precision, None);
-
-        let seg = FormatSegments::parse("temperature:c.2");
-        assert_eq!(seg.field, "temperature");
-        assert_eq!(seg.unit, Some("c"));
-        assert_eq!(seg.precision, Some("2"));
-    }
-}
