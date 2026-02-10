@@ -62,9 +62,8 @@ pub struct FormatSegments<'a> {
 }
 
 impl<'a> FormatSegments<'a> {
-    /// # Safety
     /// `caps` must be the captures from [get_regex].
-    pub unsafe fn from_caps(caps: &'a regex::Captures<'_>) -> FormatSegments<'a> {
+    pub fn from_caps_unchecked(caps: &'a regex::Captures<'_>) -> FormatSegments<'a> {
         FormatSegments {
             field: &caps[1],
             unit: caps.get(2).map(|v| v.as_str()),
@@ -107,7 +106,7 @@ fn parse(format: &str) -> Result<Vec<Chunk>, UnitParseError> {
 
     for caps in re.captures_iter(format) {
         let m = caps.get(0).unwrap();
-        let format_segments = unsafe { FormatSegments::from_caps(&caps) };
+        let format_segments = FormatSegments::from_caps_unchecked(&caps);
 
         // static
         if m.start() > last_end {

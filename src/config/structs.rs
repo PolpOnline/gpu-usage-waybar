@@ -92,7 +92,7 @@ RX: {rx:MiB.3} MiB/s";
         for line in self.format().split_inclusive('\n') {
             // Check if ANY field string is invalid
             let has_unavailable = re.captures_iter(line).any(|caps| {
-                let format_segments = unsafe { FormatSegments::from_caps(&caps) };
+                let format_segments = FormatSegments::from_caps_unchecked(&caps);
                 Field::try_from(format_segments).map_or(true, |f| data.is_field_unavailable(f))
             });
 
