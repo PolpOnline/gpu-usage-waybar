@@ -65,13 +65,10 @@ pub fn scan_drm_devices() -> eyre::Result<Vec<DrmDevice>> {
         }
     }
 
-    sort_by_dri_card_index(&mut drm_devices);
+    // sort by card index
+    drm_devices.sort_by_key(|dev| dev.get_dri_card_index().unwrap_or(u8::MAX));
 
     Ok(drm_devices)
-}
-
-fn sort_by_dri_card_index(devs: &mut [DrmDevice]) {
-    devs.sort_by_key(|dev| dev.get_dri_card_index().unwrap_or(u8::MAX));
 }
 
 #[test]
