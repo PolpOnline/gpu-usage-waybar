@@ -49,17 +49,6 @@ impl GpuHandle {
     pub fn new(data: Box<dyn GpuStatus>) -> Self {
         Self { data }
     }
-    fn compute_mem_usage(&self) -> Option<u8> {
-        let (Ok(mem_used), Ok(mem_total)) = (
-            self.data.get_mem_field(MemField::MemUsed),
-            self.data.get_mem_field(MemField::MemTotal),
-        ) else {
-            return None;
-        };
-
-        let ratio: f32 = (mem_used / mem_total).into();
-        Some((ratio * 100.0).round() as u8)
-    }
 
     pub fn get_text<'a>(&self, state: &'a mut State) -> &'a str {
         if !self.data.is_powered_on() {
@@ -157,6 +146,18 @@ impl GpuHandle {
             Field::PLevel => self.data.get_plevel().is_err(),
             Field::MemUtilization => self.compute_mem_usage().is_none(),
         }
+    }
+
+    fn compute_mem_usage(&self) -> Option<u8> {
+        let (Ok(mem_used), Ok(mem_total)) = (
+            self.data.get_mem_field(MemField::MemUsed),
+            self.data.get_mem_field(MemField::MemTotal),
+        ) else {
+            return None;
+        };
+
+        let ratio: f32 = (mem_used / mem_total).into();
+        Some((ratio * 100.0).round() as u8)
     }
 }
 
