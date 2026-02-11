@@ -18,50 +18,54 @@ use uom::si::{
 use crate::gpu_status::{GetFieldError, fields::*};
 use crate::gpu_status::{GpuStatus, Temperature};
 
-pub struct NvidiaGpuStatus<'a> {
-    device: Device<'a>,
+pub struct NvidiaGpuStatus {
+    nvml: Nvml,
     bus_id: String,
 }
 
-impl NvidiaGpuStatus<'_> {
-    pub fn new(instance: &'static Nvml) -> eyre::Result<Self> {
-        let device = instance.device_by_index(0)?;
-
+impl NvidiaGpuStatus {
+    pub fn new() -> eyre::Result<Self> {
+        let nvml = Nvml::init()?;
+        let device = nvml.device_by_index(0)?;
         // Query PCI info just once
         // NVML returns a PCI domain up to 0xffffffff; need to truncate
         // to match sysfs
         let bus_id = device.pci_info()?.bus_id.chars().skip(4).collect();
 
-        Ok(Self { device, bus_id })
+        Ok(Self { nvml, bus_id })
+    }
+
+    fn device(&self) -> Device<'_> {
+        self.nvml.device_by_index(0).unwrap()
     }
 }
 
-impl GpuStatus for NvidiaGpuStatus<'_> {
+impl GpuStatus for NvidiaGpuStatus {
     fn get_u8_field(&self, field: U8Field) -> Result<u8, GetFieldError> {
         let maybe_val = match field {
             U8Field::GpuUtilization => self
-                .device
+                .device()
                 .utilization_rates()
                 .as_ref()
                 .map(|u| u.gpu as u8)
                 .ok(),
             U8Field::MemRw => self
-                .device
+                .device()
                 .utilization_rates()
                 .as_ref()
                 .map(|r| r.memory as u8)
                 .ok(),
             U8Field::DecoderUtilization => self
-                .device
+                .device()
                 .decoder_utilization()
                 .map(|u| u.utilization as u8)
                 .ok(),
             U8Field::EncoderUtilization => self
-                .device
+                .device()
                 .encoder_utilization()
                 .map(|u| u.utilization as u8)
                 .ok(),
-            U8Field::FanSpeed => self.device.fan_speed(0u32).map(|f| f as u8).ok(),
+            U8Field::FanSpeed => self.device().fan_speed(0u32).map(|f| f as u8).ok(),
         };
 
         maybe_val.ok_or(GetFieldError::Unavailable)
@@ -70,24 +74,24 @@ impl GpuStatus for NvidiaGpuStatus<'_> {
     fn get_mem_field(&self, field: MemField) -> Result<Information, GetFieldError> {
         let maybe_val = match field {
             MemField::MemUsed => self
-                .device
+                .device()
                 .memory_info()
                 .as_ref()
                 .map(|m| Information::new::<byte>(m.used as f32))
                 .ok(),
             MemField::MemTotal => self
-                .device
+                .device()
                 .memory_info()
                 .as_ref()
                 .map(|m| Information::new::<byte>(m.total as f32))
                 .ok(),
             MemField::Tx => self
-                .device
+                .device()
                 .pcie_throughput(PcieUtilCounter::Send)
                 .map(|t| Information::new::<kilobyte>(t as f32))
                 .ok(),
             MemField::Rx => self
-                .device
+                .device()
                 .pcie_throughput(PcieUtilCounter::Receive)
                 .map(|t| Information::new::<kilobyte>(t as f32))
                 .ok(),
@@ -97,21 +101,21 @@ impl GpuStatus for NvidiaGpuStatus<'_> {
     }
 
     fn get_temperature(&self) -> Result<Temperature, GetFieldError> {
-        self.device
+        self.device()
             .temperature(TemperatureSensor::Gpu)
             .map(|t| Temperature::new::<degree_celsius>(t as f32))
             .map_err(|_| GetFieldError::Unavailable)
     }
 
     fn get_power(&self) -> Result<Power, GetFieldError> {
-        self.device
+        self.device()
             .power_usage()
             .map(|p| Power::new::<milliwatt>(p as f32))
             .map_err(|_| GetFieldError::Unavailable)
     }
 
     fn get_pstate(&self) -> Result<PState, GetFieldError> {
-        self.device
+        self.device()
             .performance_state()
             .map(|p| p.into())
             .map_err(|_| GetFieldError::Unavailable)

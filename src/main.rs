@@ -7,52 +7,53 @@ pub mod nvidia;
 
 use std::{
     io::{Write, stdout},
-    sync::OnceLock,
     time::Duration,
 };
 
 use clap::Parser;
 use color_eyre::eyre::{Result, eyre};
-use nvml_wrapper::Nvml;
 use serde::Serialize;
+use udev::Hwdb;
 
 use crate::{
-    amd::{AmdGpuStatus, AmdSysFS},
-    formatter::State,
-    gpu_status::GpuHandle,
+    amd::AmdGpuStatus, drm::DrmDevice, formatter::State, gpu_status::GpuHandle,
     nvidia::NvidiaGpuStatus,
 };
 
-pub enum Instance {
-    Nvml(Box<Nvml>),
-    Amd(Box<AmdSysFS>),
-}
+fn get_handle(gpu: &DrmDevice, hwdb: &Hwdb) -> Result<GpuHandle> {
+    let vendor_name = gpu
+        .get_vendor_name(hwdb)?
+        .into_string()
+        .unwrap()
+        .to_lowercase();
 
-impl Instance {
-    /// Get the instance based on the GPU brand.
-    pub fn new() -> Result<Self> {
-        let modules = procfs::modules()?;
-
-        if modules.contains_key("nvidia") {
-            return Ok(Self::Nvml(Box::new(Nvml::init()?)));
-        }
-        if modules.contains_key("amdgpu") {
-            return Ok(Self::Amd(Box::new(AmdSysFS::init()?)));
-        }
-
-        Err(eyre!("No supported GPU found"))
+    // we could use equal to match vendor, but using contains is always safer
+    // vendor_name == "Nvidia Corporation"
+    if vendor_name.contains("nvidia") {
+        return Ok(GpuHandle::new(Box::new(NvidiaGpuStatus::new()?)));
     }
-}
+    // vendor_name == "Advanced Micro Devices, Inc. [AMD/ATI]"
+    if vendor_name.contains("advanced micro devices") {
+        return Ok(GpuHandle::new(Box::new(AmdGpuStatus::new(
+            gpu.device.syspath().to_path_buf(),
+        )?)));
+    }
+    // vendor_name == "Intel Corporation"
+    if vendor_name.contains("intel") {
+        todo!();
+    }
 
-pub static INSTANCE: OnceLock<Instance> = OnceLock::new();
-
-fn get_instance() -> &'static Instance {
-    INSTANCE.get_or_init(|| Instance::new().unwrap())
+    Err(eyre!("No supported GPU found"))
 }
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 pub struct Args {
+    /// The GPU index you want to monitor.
+    /// The index is typically the `X` in /dev/dri/cardX.
+    #[arg(long, default_value = "0")]
+    gpu: usize,
+
     /// Polling interval in milliseconds
     #[arg(long)]
     interval: Option<u64>,
@@ -79,10 +80,13 @@ fn main() -> Result<()> {
 
     config.merge_args_into_config(&args)?;
 
-    let gpu_status_handle = match get_instance() {
-        Instance::Nvml(nvml) => GpuHandle::new(Box::new(NvidiaGpuStatus::new(nvml)?)),
-        Instance::Amd(amd_sys_fs) => GpuHandle::new(Box::new(AmdGpuStatus::new(amd_sys_fs))),
-    };
+    let gpus = drm::scan_drm_devices()?;
+    let gpu = gpus
+        .get(args.gpu)
+        .ok_or(eyre!("Cannot find GPU {}", args.gpu))?;
+    let hwdb = Hwdb::new()?;
+    print_gpu(args.gpu, gpu, &hwdb)?;
+    let gpu_status_handle = get_handle(gpu, &hwdb)?;
 
     // If the the user didn't set a custom tooltip format,
     // automatically hide any unavailable fields.
@@ -104,6 +108,23 @@ fn main() -> Result<()> {
 
         std::thread::sleep(update_interval);
     }
+}
+
+fn print_gpu(gpu_index: usize, gpu: &DrmDevice, hwdb: &Hwdb) -> Result<()> {
+    print!(
+        "GPU {}: {}, Nodes: ",
+        gpu_index,
+        gpu.get_model_name(hwdb)?.to_str().unwrap()
+    );
+
+    let mut nodes = gpu.children.iter().map(|dev| dev.sysname());
+    let first = nodes.next().unwrap().to_str().unwrap().to_owned();
+    let nodes = nodes.fold(first, |a, b| {
+        format!("{}, {}", a.as_str(), b.to_str().unwrap())
+    });
+    println!("{nodes}");
+
+    Ok(())
 }
 
 fn format_output<'t, 'u>(

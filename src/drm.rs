@@ -1,6 +1,7 @@
 use std::ffi::OsString;
 
 use color_eyre::eyre::{self, OptionExt};
+use udev::Hwdb;
 
 /// A wrapper around [udev::Device].
 ///
@@ -8,8 +9,8 @@ use color_eyre::eyre::{self, OptionExt};
 /// usually being `card0` and `renderD128`.
 #[derive(Debug)]
 pub struct DrmDevice {
-    device: udev::Device,
-    children: Vec<udev::Device>,
+    pub device: udev::Device,
+    pub children: Vec<udev::Device>,
 }
 
 impl DrmDevice {
@@ -22,8 +23,21 @@ impl DrmDevice {
         maybe_index_str.map(|idx| idx.parse().unwrap())
     }
 
-    pub fn get_vendor_name(&self) -> eyre::Result<OsString> {
-        let hwdb = udev::Hwdb::new()?;
+    pub fn get_model_name(&self, hwdb: &Hwdb) -> eyre::Result<OsString> {
+        let modalias = format!(
+            "pci:v0000{}d0000{}*",
+            self.get_vendor_id_str()?,
+            self.get_device_id_str()?
+        );
+
+        let model_name = hwdb
+            .query_one(modalias.as_str(), "ID_MODEL_FROM_DATABASE")
+            .ok_or_eyre("No model name result exits in database")?;
+
+        Ok(model_name.to_owned())
+    }
+
+    pub fn get_vendor_name(&self, hwdb: &Hwdb) -> eyre::Result<OsString> {
         let modalias = format!("pci:v0000{}*", self.get_vendor_id_str()?);
         let vendor_name = hwdb
             .query_one(modalias.as_str(), "ID_VENDOR_FROM_DATABASE")
@@ -31,14 +45,22 @@ impl DrmDevice {
         Ok(vendor_name.to_owned())
     }
 
-    fn get_vendor_id_str(&self) -> eyre::Result<&str> {
+    fn get_pci_id_str(&self) -> eyre::Result<&str> {
         let pci_id = self
             .device
             .property_value("PCI_ID")
             .ok_or_eyre("Cannot find PCI_ID for device")?
             .to_str()
             .unwrap();
-        Ok(&pci_id[0..4])
+        Ok(pci_id)
+    }
+
+    fn get_vendor_id_str(&self) -> eyre::Result<&str> {
+        Ok(&self.get_pci_id_str()?[..4])
+    }
+
+    fn get_device_id_str(&self) -> eyre::Result<&str> {
+        Ok(&self.get_pci_id_str()?[5..])
     }
 }
 
