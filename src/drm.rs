@@ -11,9 +11,21 @@ use udev::Hwdb;
 pub struct DrmDevice {
     pub device: udev::Device,
     pub children: Vec<udev::Device>,
+    pci_id: PciId,
 }
 
 impl DrmDevice {
+    pub fn new(device: udev::Device, children: Vec<udev::Device>) -> Self {
+        let pci_id = PciId::from_device(&device).unwrap();
+
+        Self {
+            device,
+            children,
+            pci_id,
+        }
+    }
+
+    /// Return the card index `N` if a child with sysname `cardN` is found.
     pub fn get_dri_card_index(&self) -> Option<u8> {
         let maybe_index_str = self
             .children
@@ -25,9 +37,8 @@ impl DrmDevice {
 
     pub fn get_model_name(&self, hwdb: &Hwdb) -> eyre::Result<OsString> {
         let modalias = format!(
-            "pci:v0000{}d0000{}*",
-            self.get_vendor_id_str()?,
-            self.get_device_id_str()?
+            "pci:v{:08X}d{:08X}*",
+            self.pci_id.vendor_id, self.pci_id.device_id,
         );
 
         let model_name = hwdb
@@ -38,32 +49,15 @@ impl DrmDevice {
     }
 
     pub fn get_vendor_name(&self, hwdb: &Hwdb) -> eyre::Result<OsString> {
-        let modalias = format!("pci:v0000{}*", self.get_vendor_id_str()?);
+        let modalias = format!("pci:v{:08X}*", self.pci_id.vendor_id);
         let vendor_name = hwdb
             .query_one(modalias.as_str(), "ID_VENDOR_FROM_DATABASE")
             .ok_or_eyre("No vendor name result exits in database")?;
         Ok(vendor_name.to_owned())
     }
-
-    fn get_pci_id_str(&self) -> eyre::Result<&str> {
-        let pci_id = self
-            .device
-            .property_value("PCI_ID")
-            .ok_or_eyre("Cannot find PCI_ID for device")?
-            .to_str()
-            .unwrap();
-        Ok(pci_id)
-    }
-
-    fn get_vendor_id_str(&self) -> eyre::Result<&str> {
-        Ok(&self.get_pci_id_str()?[..4])
-    }
-
-    fn get_device_id_str(&self) -> eyre::Result<&str> {
-        Ok(&self.get_pci_id_str()?[5..])
-    }
 }
 
+/// Scan DRM devices and sort them by card index.
 pub fn scan_drm_devices() -> eyre::Result<Vec<DrmDevice>> {
     // construct an enumerator that iterates through DRM leaf nodes
     let mut enumerator = udev::Enumerator::new()?;
@@ -80,10 +74,7 @@ pub fn scan_drm_devices() -> eyre::Result<Vec<DrmDevice>> {
         {
             drm_device.children.push(dev);
         } else {
-            drm_devices.push(DrmDevice {
-                device: parent,
-                children: vec![dev],
-            });
+            drm_devices.push(DrmDevice::new(parent, vec![dev]));
         }
     }
 
@@ -91,6 +82,29 @@ pub fn scan_drm_devices() -> eyre::Result<Vec<DrmDevice>> {
     drm_devices.sort_by_key(|dev| dev.get_dri_card_index().unwrap_or(u8::MAX));
 
     Ok(drm_devices)
+}
+
+#[derive(Debug, Clone, Copy)]
+struct PciId {
+    pub vendor_id: u16,
+    pub device_id: u16,
+}
+
+impl PciId {
+    fn from_device(dev: &udev::Device) -> Option<Self> {
+        // PCI ID is in format XXXX:XXXX
+        let pci_id_osstr = dev.property_value("PCI_ID")?;
+        let pci_id_str = pci_id_osstr.to_str().unwrap();
+        let (vendor_str, device_str) = pci_id_str.split_once(':').unwrap();
+
+        let vendor_id = u16::from_str_radix(vendor_str, 16).unwrap();
+        let device_id = u16::from_str_radix(device_str, 16).unwrap();
+
+        Some(Self {
+            vendor_id,
+            device_id,
+        })
+    }
 }
 
 #[test]
