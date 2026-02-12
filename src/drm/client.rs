@@ -1,24 +1,82 @@
 use std::{
-    fs::{self, File, Metadata},
-    io::{BufRead, BufReader, Read},
+    fs::{self, File},
+    io::{self, BufRead, BufReader, Read, Seek, SeekFrom},
     os::linux::fs::MetadataExt,
+    time::Instant,
 };
 
 use procfs::process::{FDInfo, FDTarget, Process, ProcessesIter};
 
 pub struct DrmClient {
+    pub render_engine: EngineStats,
     reader: BufReader<File>,
     id: u32,
     last_seen: u64,
 }
 
+const RENDER_ENGINE_KEY: &str = "drm-engine-render";
+
 impl DrmClient {
+    pub fn update_engines(&mut self) -> io::Result<()> {
+        let reader = &mut self.reader;
+        reader.seek(SeekFrom::Start(0))?;
+
+        for line in reader.lines().map_while(Result::ok) {
+            if line.starts_with(RENDER_ENGINE_KEY) {
+                let value = line.split_whitespace().nth(1).unwrap().parse().unwrap();
+                let sample = EngineSample::new(value);
+                self.render_engine.update_utilization(sample);
+                break;
+            }
+        }
+
+        Ok(())
+    }
+
+    // TODO: move out structure
     fn read_id<R: ?Sized + Read>(reader: &mut BufReader<R>) -> Option<u32> {
         reader
             .lines()
             .map_while(Result::ok)
             .find(|l| l.starts_with("drm-client-id"))
             .and_then(|l| l.split_whitespace().nth(1).and_then(|v| v.parse().ok()))
+    }
+}
+
+#[derive(Default)]
+pub struct EngineStats {
+    utilization: Option<f64>,
+    last_sample: Option<EngineSample>,
+}
+
+impl EngineStats {
+    fn update_utilization(&mut self, sample: EngineSample) {
+        if let Some(last_sample) = self.last_sample {
+            let delta_used = sample.value - last_sample.value;
+            let delta_sample = sample
+                .sample_finished_at
+                .duration_since(last_sample.sample_finished_at)
+                .as_nanos();
+
+            self.utilization = Some(delta_used as f64 / delta_sample as f64);
+        }
+
+        self.last_sample = Some(sample);
+    }
+}
+
+#[derive(Clone, Copy)]
+struct EngineSample {
+    value: u64,
+    sample_finished_at: Instant,
+}
+
+impl EngineSample {
+    fn new(value: u64) -> Self {
+        Self {
+            value,
+            sample_finished_at: Instant::now(),
+        }
     }
 }
 
@@ -60,6 +118,7 @@ impl ClientManager {
             client.last_seen = self.current_tick;
         } else {
             self.clients.push(DrmClient {
+                render_engine: EngineStats::default(),
                 reader,
                 id,
                 last_seen: self.current_tick,
@@ -67,6 +126,7 @@ impl ClientManager {
         }
     }
 }
+
 const DRM_DEVNODE_MAJOR: u32 = 226;
 
 fn is_drm_fd(fd: &FDInfo) -> bool {
@@ -83,11 +143,25 @@ fn is_drm_fd(fd: &FDInfo) -> bool {
 }
 
 #[test]
-fn find_drm_clients() {
+fn clients() {
     let mut mgr = ClientManager::default();
-    mgr.update(procfs::process::all_processes().unwrap());
 
-    for client in mgr.clients {
-        dbg!(client.id);
+    loop {
+        mgr.update(procfs::process::all_processes().unwrap());
+        // for client in &mgr.clients {
+        //     dbg!(client.id);
+        // }
+        // println!("Total clients: {}", mgr.clients.len());
+        let mut sum = 0.0;
+        for client in mgr.clients.iter_mut() {
+            client.update_engines().unwrap();
+            println!("{:?}", client.render_engine.utilization);
+            if let Some(util) = client.render_engine.utilization {
+                sum += util;
+            }
+        }
+        println!("render utilization: {:.2}%", sum * 100.0);
+
+        std::thread::sleep(std::time::Duration::from_secs(1));
     }
 }
