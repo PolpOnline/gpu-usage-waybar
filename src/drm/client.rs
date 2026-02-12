@@ -1,6 +1,6 @@
 use std::{
     fs::{self, File},
-    io::{self, BufRead, BufReader, Read, Seek, SeekFrom},
+    io::{self, BufRead, BufReader, Seek, SeekFrom},
     os::linux::fs::MetadataExt,
     time::Instant,
 };
@@ -31,15 +31,6 @@ impl DrmClient {
         }
 
         Ok(())
-    }
-
-    // TODO: move out structure
-    fn read_id<R: ?Sized + Read>(reader: &mut BufReader<R>) -> Option<u32> {
-        reader
-            .lines()
-            .map_while(Result::ok)
-            .find(|l| l.starts_with("drm-client-id"))
-            .and_then(|l| l.split_whitespace().nth(1).and_then(|v| v.parse().ok()))
     }
 }
 
@@ -94,8 +85,7 @@ impl ClientManager {
             self.scan_process_fds(proc);
         }
 
-        let current_tick = self.current_tick;
-        self.clients.retain(|c| c.last_seen == current_tick);
+        self.clients.retain(|c| c.last_seen == self.current_tick);
     }
 
     fn scan_process_fds(&mut self, proc: Process) {
@@ -107,7 +97,7 @@ impl ClientManager {
             };
             let mut reader = BufReader::new(fdinfo_file);
 
-            if let Some(id) = DrmClient::read_id(&mut reader) {
+            if let Some(id) = read_id(&mut reader) {
                 self.mark_or_insert_client(id, reader);
             }
         }
@@ -140,6 +130,14 @@ fn is_drm_fd(fd: &FDInfo) -> bool {
     let is_char_dev = metadata.st_mode() & libc::S_IFMT == libc::S_IFCHR;
     let is_drm_dev = libc::major(metadata.st_rdev()) == DRM_DEVNODE_MAJOR;
     is_char_dev && is_drm_dev
+}
+
+fn read_id(reader: &mut BufReader<File>) -> Option<u32> {
+    reader
+        .lines()
+        .map_while(Result::ok)
+        .find(|l| l.starts_with("drm-client-id"))
+        .map(|l| l.split_whitespace().nth(1).unwrap().parse().unwrap())
 }
 
 #[test]
