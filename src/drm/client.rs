@@ -4,7 +4,7 @@ use std::{
     os::linux::fs::MetadataExt,
 };
 
-use procfs::process::{FDTarget, ProcessesIter};
+use procfs::process::{FDInfo, FDTarget, Process, ProcessesIter};
 
 pub struct DrmClient {
     reader: BufReader<File>,
@@ -29,52 +29,54 @@ struct ClientManager {
 }
 
 impl ClientManager {
-    fn update(&mut self, procs: ProcessesIter) {
+    pub fn update(&mut self, procs: ProcessesIter) {
         self.current_tick += 1;
 
         for proc in procs.flatten() {
-            let Ok(fds) = proc.fd() else { continue };
+            self.scan_process_fds(proc);
+        }
 
-            for fd in fds.flatten() {
-                let FDTarget::Path(ref path) = fd.target else {
-                    continue;
-                };
-                let Ok(meta) = fs::metadata(path) else {
-                    continue;
-                };
-                if !is_drm_fd(&meta) {
-                    continue;
-                };
-                let Ok(fdinfo) = File::open(format!("/proc/{}/fdinfo/{}", proc.pid, fd.fd)) else {
-                    continue;
-                };
+        let current_tick = self.current_tick;
+        self.clients.retain(|c| c.last_seen == current_tick);
+    }
 
-                let mut reader = BufReader::new(fdinfo);
-                let Some(id) = DrmClient::read_id(&mut reader) else {
-                    continue;
-                };
+    fn scan_process_fds(&mut self, proc: Process) {
+        let Ok(fds) = proc.fd() else { return };
 
-                let current_tick = self.current_tick;
-                if let Some(client) = self.clients.iter_mut().find(|client| client.id == id) {
-                    client.last_seen = current_tick;
-                } else {
-                    self.clients.push(DrmClient {
-                        reader,
-                        id,
-                        last_seen: current_tick,
-                    });
-                }
+        for fd in fds.flatten().filter(is_drm_fd) {
+            let Ok(fdinfo_file) = File::open(format!("/proc/{}/fdinfo/{}", proc.pid, fd.fd)) else {
+                continue;
+            };
+            let mut reader = BufReader::new(fdinfo_file);
 
-                self.clients
-                    .retain(|client| client.last_seen == current_tick);
+            if let Some(id) = DrmClient::read_id(&mut reader) {
+                self.mark_or_insert_client(id, reader);
             }
         }
     }
-}
 
+    fn mark_or_insert_client(&mut self, id: u32, reader: BufReader<File>) {
+        if let Some(client) = self.clients.iter_mut().find(|c| c.id == id) {
+            client.last_seen = self.current_tick;
+        } else {
+            self.clients.push(DrmClient {
+                reader,
+                id,
+                last_seen: self.current_tick,
+            });
+        }
+    }
+}
 const DRM_DEVNODE_MAJOR: u32 = 226;
 
-fn is_drm_fd(metadata: &Metadata) -> bool {
+fn is_drm_fd(fd: &FDInfo) -> bool {
+    let FDTarget::Path(ref path) = fd.target else {
+        return false;
+    };
+    let Ok(metadata) = fs::metadata(path) else {
+        return false;
+    };
+
     let is_char_dev = metadata.st_mode() & libc::S_IFMT == libc::S_IFCHR;
     let is_drm_dev = libc::major(metadata.st_rdev()) == DRM_DEVNODE_MAJOR;
     is_char_dev && is_drm_dev
