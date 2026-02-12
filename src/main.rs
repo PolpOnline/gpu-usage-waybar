@@ -16,7 +16,7 @@ use serde::Serialize;
 use udev::Hwdb;
 
 use crate::{
-    amd::AmdGpuStatus, drm::DrmDevice, formatter::State, gpu_status::GpuHandle,
+    amd::AmdGpuStatus, drm::device::DrmDevice, formatter::State, gpu_status::GpuHandle,
     nvidia::NvidiaGpuStatus,
 };
 
@@ -80,7 +80,7 @@ fn main() -> Result<()> {
 
     config.merge_args_into_config(&args)?;
 
-    let gpus = drm::scan_drm_devices()?;
+    let gpus = drm::device::scan_drm_devices()?;
     let gpu = gpus
         .get(args.gpu)
         .ok_or(eyre!("Cannot find GPU {}", args.gpu))?;
