@@ -4,7 +4,7 @@ use regex::Regex;
 use std::fmt::Debug;
 
 use crate::gpu_status::{
-    GetFieldError, GpuHandle,
+    GpuHandle,
     fields::{Field, UnitParseError},
 };
 
@@ -31,11 +31,8 @@ impl State {
             match chunk {
                 Chunk::Static(s) => self.buffer.push_str(s),
                 Chunk::Variable(field) => {
-                    if matches!(
-                        // write_field() writes "N/A" if field is Field::Unknown.
-                        handle.write_field(*field, &mut self.buffer),
-                        Err(GetFieldError::Unavailable)
-                    ) {
+                    // write_field() writes "N/A" if field is Field::Unknown.
+                    if handle.write_field(*field, &mut self.buffer).is_err() {
                         self.buffer.push_str("N/A");
                     }
                 }

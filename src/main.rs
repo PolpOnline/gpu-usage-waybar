@@ -3,6 +3,7 @@ pub mod config;
 pub mod drm;
 pub mod formatter;
 pub mod gpu_status;
+pub mod intel;
 pub mod nvidia;
 
 use std::{
@@ -17,7 +18,7 @@ use udev::Hwdb;
 
 use crate::{
     amd::AmdGpuStatus, drm::device::DrmDevice, formatter::State, gpu_status::GpuHandle,
-    nvidia::NvidiaGpuStatus,
+    intel::IntelGpuStatus, nvidia::NvidiaGpuStatus,
 };
 
 fn get_handle(gpu: &DrmDevice, hwdb: &Hwdb) -> Result<GpuHandle> {
@@ -40,7 +41,12 @@ fn get_handle(gpu: &DrmDevice, hwdb: &Hwdb) -> Result<GpuHandle> {
     }
     // vendor_name == "Intel Corporation"
     if vendor_name.contains("intel") {
-        todo!();
+        return Ok(GpuHandle::new(Box::new(IntelGpuStatus::new(
+            gpu.children
+                .iter()
+                .map(|c| c.sysname().to_owned())
+                .collect(),
+        ))));
     }
 
     Err(eyre!("No supported GPU found"))
@@ -86,11 +92,13 @@ fn main() -> Result<()> {
         .ok_or(eyre!("Cannot find GPU {}", args.gpu))?;
     let hwdb = Hwdb::new()?;
     print_gpu(args.gpu, gpu, &hwdb)?;
-    let gpu_status_handle = get_handle(gpu, &hwdb)?;
+    let mut gpu_status_handle = get_handle(gpu, &hwdb)?;
 
     // If the the user didn't set a custom tooltip format,
     // automatically hide any unavailable fields.
     if !config.tooltip.is_format_set() {
+        let procs = procfs::process::all_processes()?;
+        gpu_status_handle.data.update(procs)?;
         config.tooltip.retain_lines_with_values(&gpu_status_handle);
     }
 
@@ -102,6 +110,13 @@ fn main() -> Result<()> {
     let mut stdout_lock = stdout().lock();
 
     loop {
+        let Ok(procs) = procfs::process::all_processes() else {
+            continue;
+        };
+        if let Err(err) = gpu_status_handle.data.update(procs) {
+            eprintln!("{err}");
+        }
+
         let output = format_output(&gpu_status_handle, &mut text_state, &mut tooltip_state);
 
         writeln!(&mut stdout_lock, "{}", sonic_rs::to_string(&output)?)?;

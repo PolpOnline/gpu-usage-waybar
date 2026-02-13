@@ -5,7 +5,7 @@ use nvml_wrapper::{
     Device, Nvml,
     enum_wrappers::device::{PcieUtilCounter, PerformanceState, TemperatureSensor},
 };
-use procfs::process::{FDTarget, all_processes};
+use procfs::process::{FDTarget, ProcessesIter};
 use strum::Display;
 use uom::si::{
     f32::Information,
@@ -21,6 +21,7 @@ use crate::gpu_status::{GpuStatus, Temperature};
 pub struct NvidiaGpuStatus {
     nvml: Nvml,
     bus_id: String,
+    has_running_procs: bool,
 }
 
 impl NvidiaGpuStatus {
@@ -32,7 +33,11 @@ impl NvidiaGpuStatus {
         // to match sysfs
         let bus_id = device.pci_info()?.bus_id.chars().skip(4).collect();
 
-        Ok(Self { nvml, bus_id })
+        Ok(Self {
+            nvml,
+            bus_id,
+            has_running_procs: true,
+        })
     }
 
     fn device(&self) -> Device<'_> {
@@ -135,44 +140,13 @@ impl GpuStatus for NvidiaGpuStatus {
         status.trim() == "active"
     }
 
-    /// Returns `true` if there is any process currently using GPU 0.
-    ///
-    /// This function checks whether `/dev/nvidia0` is opened by any process
-    /// other than the current one without waking up the GPU by scanning
-    /// `/proc/*/fd`.
-    ///
-    /// # Note
-    ///
-    /// Do not use
-    /// [nvml_wrapper::device::Device::running_compute_processes_count] or
-    /// [nvml_wrapper::device::Device::running_graphics_processes_count]
-    /// as they wake up the GPU.
-    ///
-    /// # References
-    ///
-    /// <https://wiki.archlinux.org/title/PRIME#NVIDIA>
     fn has_running_processes(&self) -> bool {
-        let procs = all_processes().expect("Can't read /proc");
+        self.has_running_procs
+    }
 
-        for proc in procs.flatten() {
-            if proc.pid == std::process::id() as i32 {
-                continue;
-            }
-
-            let Ok(fds) = proc.fd() else {
-                continue;
-            };
-
-            for fd in fds.flatten() {
-                if let FDTarget::Path(ref path) = fd.target
-                    && path == "/dev/nvidia0"
-                {
-                    return true;
-                }
-            }
-        }
-
-        false
+    fn update(&mut self, procs: ProcessesIter) -> eyre::Result<()> {
+        self.has_running_procs = has_running_processes(procs);
+        Ok(())
     }
 }
 
@@ -219,4 +193,42 @@ impl From<PerformanceState> for PState {
             PerformanceState::Unknown => PState::Unknown,
         }
     }
+}
+
+/// Returns `true` if there is any process currently using GPU 0.
+///
+/// This function checks whether `/dev/nvidia0` is opened by any process
+/// other than the current one without waking up the GPU by scanning
+/// `/proc/*/fd`.
+///
+/// # Note
+///
+/// Do not use
+/// [nvml_wrapper::device::Device::running_compute_processes_count] or
+/// [nvml_wrapper::device::Device::running_graphics_processes_count]
+/// as they wake up the GPU.
+///
+/// # References
+///
+/// <https://wiki.archlinux.org/title/PRIME#NVIDIA>
+fn has_running_processes(procs: ProcessesIter) -> bool {
+    for proc in procs.flatten() {
+        if proc.pid == std::process::id() as i32 {
+            continue;
+        }
+
+        let Ok(fds) = proc.fd() else {
+            continue;
+        };
+
+        for fd in fds.flatten() {
+            if let FDTarget::Path(ref path) = fd.target
+                && path == "/dev/nvidia0"
+            {
+                return true;
+            }
+        }
+    }
+
+    false
 }

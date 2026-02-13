@@ -1,7 +1,7 @@
 use std::{
-    fs::{self, File},
+    ffi::OsString,
+    fs::File,
     io::{self, BufRead, BufReader, Seek, SeekFrom},
-    os::linux::fs::MetadataExt,
     time::Instant,
 };
 
@@ -9,6 +9,7 @@ use procfs::process::{FDInfo, FDTarget, Process, ProcessesIter};
 
 pub struct DrmClient {
     pub render_engine: EngineStats,
+    // TODO: other engines
     reader: BufReader<File>,
     id: u32,
     last_seen: u64,
@@ -17,7 +18,7 @@ pub struct DrmClient {
 const RENDER_ENGINE_KEY: &str = "drm-engine-render";
 
 impl DrmClient {
-    pub fn update_engines(&mut self) -> io::Result<()> {
+    fn update_engines(&mut self) -> io::Result<()> {
         let reader = &mut self.reader;
         reader.seek(SeekFrom::Start(0))?;
 
@@ -35,8 +36,79 @@ impl DrmClient {
 }
 
 #[derive(Default)]
+pub struct ClientManager {
+    pub clients: Vec<DrmClient>,
+    devnames: Box<[OsString]>,
+    current_tick: u64,
+}
+
+impl ClientManager {
+    pub fn new(devnames: Box<[OsString]>) -> Self {
+        Self {
+            devnames,
+            clients: Vec::new(),
+            current_tick: 0,
+        }
+    }
+
+    pub fn update(&mut self, procs: ProcessesIter) {
+        self.current_tick += 1;
+
+        for proc in procs.flatten() {
+            self.scan_process_fds(proc);
+        }
+
+        self.clients.retain(|c| c.last_seen == self.current_tick);
+
+        for client in self.clients.iter_mut() {
+            client.update_engines().unwrap();
+        }
+    }
+
+    fn scan_process_fds(&mut self, proc: Process) {
+        let Ok(fds) = proc.fd() else { return };
+
+        for fd in fds.flatten() {
+            if !self.should_manage(&fd) {
+                continue;
+            }
+            let Ok(fdinfo_file) = File::open(format!("/proc/{}/fdinfo/{}", proc.pid, fd.fd)) else {
+                continue;
+            };
+            let mut reader = BufReader::new(fdinfo_file);
+
+            if let Some(id) = read_id(&mut reader) {
+                self.mark_or_insert_client(id, reader);
+            }
+        }
+    }
+
+    fn mark_or_insert_client(&mut self, id: u32, reader: BufReader<File>) {
+        if let Some(client) = self.clients.iter_mut().find(|c| c.id == id) {
+            client.last_seen = self.current_tick;
+        } else {
+            self.clients.push(DrmClient {
+                render_engine: EngineStats::default(),
+                reader,
+                id,
+                last_seen: self.current_tick,
+            });
+        }
+    }
+
+    fn should_manage(&self, fd: &FDInfo) -> bool {
+        let FDTarget::Path(target) = &fd.target else {
+            return false;
+        };
+        self.devnames
+            .iter()
+            .any(|n| n == target.file_name().unwrap())
+    }
+}
+
+#[derive(Default)]
 pub struct EngineStats {
-    utilization: Option<f64>,
+    pub utilization: Option<f64>,
     last_sample: Option<EngineSample>,
 }
 
@@ -69,67 +141,6 @@ impl EngineSample {
             sample_finished_at: Instant::now(),
         }
     }
-}
-
-#[derive(Default)]
-struct ClientManager {
-    clients: Vec<DrmClient>,
-    current_tick: u64,
-}
-
-impl ClientManager {
-    pub fn update(&mut self, procs: ProcessesIter) {
-        self.current_tick += 1;
-
-        for proc in procs.flatten() {
-            self.scan_process_fds(proc);
-        }
-
-        self.clients.retain(|c| c.last_seen == self.current_tick);
-    }
-
-    fn scan_process_fds(&mut self, proc: Process) {
-        let Ok(fds) = proc.fd() else { return };
-
-        for fd in fds.flatten().filter(is_drm_fd) {
-            let Ok(fdinfo_file) = File::open(format!("/proc/{}/fdinfo/{}", proc.pid, fd.fd)) else {
-                continue;
-            };
-            let mut reader = BufReader::new(fdinfo_file);
-
-            if let Some(id) = read_id(&mut reader) {
-                self.mark_or_insert_client(id, reader);
-            }
-        }
-    }
-
-    fn mark_or_insert_client(&mut self, id: u32, reader: BufReader<File>) {
-        if let Some(client) = self.clients.iter_mut().find(|c| c.id == id) {
-            client.last_seen = self.current_tick;
-        } else {
-            self.clients.push(DrmClient {
-                render_engine: EngineStats::default(),
-                reader,
-                id,
-                last_seen: self.current_tick,
-            });
-        }
-    }
-}
-
-const DRM_DEVNODE_MAJOR: u32 = 226;
-
-fn is_drm_fd(fd: &FDInfo) -> bool {
-    let FDTarget::Path(ref path) = fd.target else {
-        return false;
-    };
-    let Ok(metadata) = fs::metadata(path) else {
-        return false;
-    };
-
-    let is_char_dev = metadata.st_mode() & libc::S_IFMT == libc::S_IFCHR;
-    let is_drm_dev = libc::major(metadata.st_rdev()) == DRM_DEVNODE_MAJOR;
-    is_char_dev && is_drm_dev
 }
 
 fn read_id(reader: &mut BufReader<File>) -> Option<u32> {

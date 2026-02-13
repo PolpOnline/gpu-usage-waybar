@@ -1,8 +1,13 @@
 pub mod fields;
 
-use crate::{formatter::State, gpu_status::fields::*, nvidia::PState};
+use crate::{
+    formatter::State,
+    gpu_status::fields::{Field, MemField, U8Field},
+    nvidia::PState,
+};
 use amdgpu_sysfs::gpu_handle::PerformanceLevel;
-use color_eyre::eyre::Result;
+use color_eyre::eyre;
+use procfs::process::ProcessesIter;
 use std::fmt::Write;
 use uom::si::{f32::Information, f32::Power};
 
@@ -38,6 +43,11 @@ pub trait GpuStatus {
     fn has_running_processes(&self) -> bool {
         // default true so GpuHandle::get_text and GpuHandle::get_tooltip does not skip
         true
+    }
+    /// Some implementors (like [crate::IntelGpuStatus]) need to update (take sample) before getting data.
+    /// So do call this before getting data.
+    fn update(&mut self, _procs: ProcessesIter) -> eyre::Result<()> {
+        Ok(())
     }
 }
 
@@ -165,6 +175,7 @@ impl GpuHandle {
 pub enum GetFieldError {
     Unavailable,
     BrandUnsupported,
+    NotReady,
 }
 
 #[cfg(test)]
