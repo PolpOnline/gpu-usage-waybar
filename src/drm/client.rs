@@ -150,27 +150,3 @@ fn read_id(reader: &mut BufReader<File>) -> Option<u32> {
         .find(|l| l.starts_with("drm-client-id"))
         .map(|l| l.split_whitespace().nth(1).unwrap().parse().unwrap())
 }
-
-#[test]
-fn clients() {
-    let mut mgr = ClientManager::default();
-
-    loop {
-        mgr.update(procfs::process::all_processes().unwrap());
-        // for client in &mgr.clients {
-        //     dbg!(client.id);
-        // }
-        // println!("Total clients: {}", mgr.clients.len());
-        let mut sum = 0.0;
-        for client in mgr.clients.iter_mut() {
-            client.update_engines().unwrap();
-            println!("{:?}", client.render_engine.utilization);
-            if let Some(util) = client.render_engine.utilization {
-                sum += util;
-            }
-        }
-        println!("render utilization: {:.2}%", sum * 100.0);
-
-        std::thread::sleep(std::time::Duration::from_secs(1));
-    }
-}
