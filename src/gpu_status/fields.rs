@@ -95,6 +95,10 @@ impl TryFrom<FormatSegments<'_>> for Field {
 pub enum U8Field {
     /// GPU utilization in percent.
     GpuUtilization,
+    /// Render engine utilization in perccent.
+    RenderUtilization,
+    /// Video engine utilization in percent.
+    VideoUtilization,
     /// Memory data bus utilization in percent.
     MemRw,
     /// Decoder utilization in percent.

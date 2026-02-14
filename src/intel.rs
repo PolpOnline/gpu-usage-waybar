@@ -14,22 +14,25 @@ pub struct IntelGpuStatus {
 
 impl IntelGpuStatus {
     pub fn new(devnames: Box<[OsString]>) -> Self {
-        let clients = ClientManager::new(devnames);
         Self {
-            client_manager: clients,
+            client_manager: ClientManager::new(devnames),
         }
     }
 
-    fn compute_utilization(&self) -> Option<f64> {
-        // TODO: mix multiple engines
-        let mut utilization = 0.0;
+    fn compute_render_utilization(&self) -> f64 {
+        self.client_manager
+            .clients
+            .iter()
+            .map(|c| c.render_engine.utilization.unwrap_or_default())
+            .sum()
+    }
 
-        for client in &self.client_manager.clients {
-            let client_utilization = client.render_engine.utilization.unwrap_or_default();
-            utilization += client_utilization;
-        }
-
-        Some(utilization)
+    fn compute_video_utilization(&self) -> f64 {
+        self.client_manager
+            .clients
+            .iter()
+            .map(|c| c.video_engine.utilization.unwrap_or_default())
+            .sum()
     }
 }
 
@@ -40,12 +43,16 @@ impl GpuStatus for IntelGpuStatus {
     }
 
     fn get_u8_field(&self, field: U8Field) -> Result<u8, GetFieldError> {
-        match field {
-            U8Field::GpuUtilization => {
-                let utilization = self.compute_utilization().ok_or(GetFieldError::NotReady)?;
-                Ok((utilization * 100.0) as u8)
-            }
-            _ => Err(GetFieldError::BrandUnsupported),
-        }
+        let render_utilization = self.compute_render_utilization();
+        let video_utilization = self.compute_video_utilization();
+
+        let decimal = match field {
+            U8Field::GpuUtilization => render_utilization.max(video_utilization),
+            U8Field::RenderUtilization => render_utilization,
+            U8Field::VideoUtilization => video_utilization,
+            _ => return Err(GetFieldError::BrandUnsupported),
+        };
+
+        Ok((decimal * 100.0).round() as u8)
     }
 }

@@ -71,6 +71,7 @@ impl GpuStatus for NvidiaGpuStatus {
                 .map(|u| u.utilization as u8)
                 .ok(),
             U8Field::FanSpeed => self.device().fan_speed(0u32).map(|f| f as u8).ok(),
+            _ => return Err(GetFieldError::BrandUnsupported),
         };
 
         maybe_val.ok_or(GetFieldError::Unavailable)

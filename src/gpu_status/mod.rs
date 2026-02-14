@@ -175,7 +175,6 @@ impl GpuHandle {
 pub enum GetFieldError {
     Unavailable,
     BrandUnsupported,
-    NotReady,
 }
 
 #[cfg(test)]

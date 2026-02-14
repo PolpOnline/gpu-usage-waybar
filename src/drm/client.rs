@@ -9,25 +9,37 @@ use procfs::process::{FDInfo, FDTarget, Process, ProcessesIter};
 
 pub struct DrmClient {
     pub render_engine: EngineStats,
-    // TODO: other engines
+    pub video_engine: EngineStats,
     reader: BufReader<File>,
     id: u32,
     last_seen: u64,
 }
 
 const RENDER_ENGINE_KEY: &str = "drm-engine-render";
+const VIDEO_ENGINE_KEY: &str = "drm-engine-video";
 
 impl DrmClient {
     fn update_engines(&mut self) -> io::Result<()> {
         let reader = &mut self.reader;
         reader.seek(SeekFrom::Start(0))?;
 
+        let (mut is_render_updated, mut is_video_updated) = (false, false);
+
         for line in reader.lines().map_while(Result::ok) {
+            if is_render_updated && is_video_updated {
+                break;
+            }
+
             if line.starts_with(RENDER_ENGINE_KEY) {
                 let value = line.split_whitespace().nth(1).unwrap().parse().unwrap();
                 let sample = EngineSample::new(value);
                 self.render_engine.update_utilization(sample);
-                break;
+                is_render_updated = true;
+            } else if line.starts_with(VIDEO_ENGINE_KEY) {
+                let value = line.split_whitespace().nth(1).unwrap().parse().unwrap();
+                let sample = EngineSample::new(value);
+                self.video_engine.update_utilization(sample);
+                is_video_updated = true;
             }
         }
 
@@ -89,6 +101,7 @@ impl ClientManager {
         } else {
             self.clients.push(DrmClient {
                 render_engine: EngineStats::default(),
+                video_engine: EngineStats::default(),
                 reader,
                 id,
                 last_seen: self.current_tick,
