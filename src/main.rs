@@ -117,6 +117,8 @@ fn main() -> Result<()> {
 
     loop {
         let Ok(procs) = procfs::process::all_processes() else {
+            eprintln!("Failed to read /proc");
+            std::thread::sleep(update_interval);
             continue;
         };
         if let Err(err) = gpu_status_handle.data.update(procs) {
