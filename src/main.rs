@@ -31,7 +31,13 @@ fn get_handle(gpu: &DrmDevice, hwdb: &Hwdb) -> Result<GpuHandle> {
     // we could use equal to match vendor, but using contains is always safer
     // vendor_name == "Nvidia Corporation"
     if vendor_name.contains("nvidia") {
-        return Ok(GpuHandle::new(Box::new(NvidiaGpuStatus::new()?)));
+        return Ok(GpuHandle::new(Box::new(NvidiaGpuStatus::new(
+            gpu.device.sysname(),
+            gpu.children
+                .iter()
+                .map(|c| c.sysname().to_owned())
+                .collect(),
+        )?)));
     }
     // vendor_name == "Advanced Micro Devices, Inc. [AMD/ATI]"
     if vendor_name.contains("advanced micro devices") {
@@ -127,9 +133,10 @@ fn main() -> Result<()> {
 
 fn print_gpu(gpu_index: usize, gpu: &DrmDevice, hwdb: &Hwdb) -> Result<()> {
     print!(
-        "GPU {}: {}, Nodes: ",
+        "GPU {}: {}, Bus ID: {}, Nodes: ",
         gpu_index,
-        gpu.get_model_name(hwdb)?.to_str().unwrap()
+        gpu.get_model_name(hwdb)?.to_str().unwrap(),
+        gpu.device.sysname().to_str().unwrap()
     );
 
     let mut nodes = gpu.children.iter().map(|dev| dev.sysname());

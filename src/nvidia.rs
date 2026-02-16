@@ -1,4 +1,8 @@
-use std::fs;
+use std::{
+    ffi::{OsStr, OsString},
+    fs,
+    path::PathBuf,
+};
 
 use color_eyre::eyre;
 use nvml_wrapper::{
@@ -20,23 +24,25 @@ use crate::gpu_status::{GpuStatus, Temperature};
 
 pub struct NvidiaGpuStatus {
     nvml: Nvml,
-    bus_id: String,
+    runtime_status_path: PathBuf,
     has_running_procs: bool,
+    devnames: Box<[OsString]>,
 }
 
 impl NvidiaGpuStatus {
-    pub fn new() -> eyre::Result<Self> {
+    pub fn new(bus_id: &OsStr, devnames: Box<[OsString]>) -> eyre::Result<Self> {
         let nvml = Nvml::init()?;
-        let device = nvml.device_by_index(0)?;
-        // Query PCI info just once
-        // NVML returns a PCI domain up to 0xffffffff; need to truncate
-        // to match sysfs
-        let bus_id = device.pci_info()?.bus_id.chars().skip(4).collect();
+        let runtime_status_path = format!(
+            "/sys/bus/pci/devices/{}/power/runtime_status",
+            bus_id.to_str().unwrap()
+        )
+        .into();
 
         Ok(Self {
             nvml,
-            bus_id,
+            runtime_status_path,
             has_running_procs: true,
+            devnames,
         })
     }
 
@@ -128,8 +134,7 @@ impl GpuStatus for NvidiaGpuStatus {
     }
 
     fn is_powered_on(&self) -> bool {
-        let path = format!("/sys/bus/pci/devices/{}/power/runtime_status", self.bus_id);
-        let status = match fs::read_to_string(path) {
+        let status = match fs::read_to_string(&self.runtime_status_path) {
             Ok(s) => s,
             Err(_) => {
                 // Sometimes the runtime status file doesn't exist or doesn't contain the
@@ -146,7 +151,7 @@ impl GpuStatus for NvidiaGpuStatus {
     }
 
     fn update(&mut self, procs: ProcessesIter) -> eyre::Result<()> {
-        self.has_running_procs = has_running_processes(procs);
+        self.has_running_procs = has_running_processes(procs, &self.devnames);
         Ok(())
     }
 }
@@ -196,11 +201,10 @@ impl From<PerformanceState> for PState {
     }
 }
 
-/// Returns `true` if there is any process currently using GPU 0.
+/// Returns `true` if there is any process currently using a GPU.
 ///
-/// This function checks whether `/dev/nvidia0` is opened by any process
-/// other than the current one without waking up the GPU by scanning
-/// `/proc/*/fd`.
+/// This function checks whether any `devnames` is opened by any process
+/// other than the current one, without waking up the GPU by scanning file descriptors.
 ///
 /// # Note
 ///
@@ -209,12 +213,15 @@ impl From<PerformanceState> for PState {
 /// [nvml_wrapper::device::Device::running_graphics_processes_count]
 /// as they wake up the GPU.
 ///
-/// # References
+/// [1] suggests checking `/dev/nvidia*`, but we didn't find a way to determine the `*`
+/// in a multiple GPU system. Thus, we check `devnames`, usually being `card*` and
+/// `renderD*`. This is tested to work.
 ///
-/// <https://wiki.archlinux.org/title/PRIME#NVIDIA>
-fn has_running_processes(procs: ProcessesIter) -> bool {
+/// [1]: https://wiki.archlinux.org/title/PRIME#NVIDIA
+fn has_running_processes(procs: ProcessesIter, devnames: &[OsString]) -> bool {
     for proc in procs.flatten() {
         if proc.pid == std::process::id() as i32 {
+            // Ignore self
             continue;
         }
 
@@ -224,7 +231,7 @@ fn has_running_processes(procs: ProcessesIter) -> bool {
 
         for fd in fds.flatten() {
             if let FDTarget::Path(ref path) = fd.target
-                && path == "/dev/nvidia0"
+                && (devnames.iter().any(|n| n == path.file_name().unwrap()))
             {
                 return true;
             }
