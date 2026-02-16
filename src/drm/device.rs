@@ -46,7 +46,7 @@ impl DrmDevice {
 
         let model_name = hwdb
             .query_one(modalias.as_str(), "ID_MODEL_FROM_DATABASE")
-            .ok_or_eyre("No model name result exits in database")?;
+            .ok_or_eyre("No model name result exists in database")?;
 
         Ok(model_name.to_owned())
     }
@@ -55,7 +55,7 @@ impl DrmDevice {
         let modalias = format!("pci:v{:08X}*", self.pci_id.vendor_id);
         let vendor_name = hwdb
             .query_one(modalias.as_str(), "ID_VENDOR_FROM_DATABASE")
-            .ok_or_eyre("No vendor name result exits in database")?;
+            .ok_or_eyre("No vendor name result exists in database")?;
         Ok(vendor_name.to_owned())
     }
 }
