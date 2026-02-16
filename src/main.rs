@@ -32,7 +32,7 @@ fn get_handle(gpu: &DrmDevice, hwdb: &Hwdb) -> Result<GpuHandle> {
     // vendor_name == "Nvidia Corporation"
     if vendor_name.contains("nvidia") {
         return Ok(GpuHandle::new(Box::new(NvidiaGpuStatus::new(
-            gpu.device.sysname(),
+            gpu.device.sysname().to_string_lossy().to_string(),
             gpu.children
                 .iter()
                 .map(|c| c.sysname().to_owned())

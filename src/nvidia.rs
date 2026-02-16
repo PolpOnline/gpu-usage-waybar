@@ -1,8 +1,4 @@
-use std::{
-    ffi::{OsStr, OsString},
-    fs,
-    path::PathBuf,
-};
+use std::{ffi::OsString, fs, path::PathBuf};
 
 use color_eyre::eyre;
 use nvml_wrapper::{
@@ -24,22 +20,24 @@ use crate::gpu_status::{GpuStatus, Temperature};
 
 pub struct NvidiaGpuStatus {
     nvml: Nvml,
+    pci_bus_id: String,
     runtime_status_path: PathBuf,
     has_running_procs: bool,
     devnames: Box<[OsString]>,
 }
 
 impl NvidiaGpuStatus {
-    pub fn new(bus_id: &OsStr, devnames: Box<[OsString]>) -> eyre::Result<Self> {
+    pub fn new(pci_bus_id: String, devnames: Box<[OsString]>) -> eyre::Result<Self> {
         let nvml = Nvml::init()?;
         let runtime_status_path = format!(
             "/sys/bus/pci/devices/{}/power/runtime_status",
-            bus_id.to_str().unwrap()
+            pci_bus_id.as_str()
         )
         .into();
 
         Ok(Self {
             nvml,
+            pci_bus_id,
             runtime_status_path,
             has_running_procs: true,
             devnames,
@@ -47,7 +45,9 @@ impl NvidiaGpuStatus {
     }
 
     fn device(&self) -> Device<'_> {
-        self.nvml.device_by_index(0).unwrap()
+        self.nvml
+            .device_by_pci_bus_id(self.pci_bus_id.as_str())
+            .unwrap()
     }
 }
 
