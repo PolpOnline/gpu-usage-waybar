@@ -15,14 +15,17 @@ pub struct DrmDevice {
 }
 
 impl DrmDevice {
-    pub fn new(device: udev::Device, children: Vec<udev::Device>) -> Self {
-        let pci_id = PciId::from_device(&device).unwrap();
+    pub fn new(
+        device: udev::Device,
+        children: Vec<udev::Device>,
+    ) -> Result<Self, NotPciDeviceError> {
+        let pci_id = PciId::from_device(&device).ok_or(NotPciDeviceError(device.clone()))?;
 
-        Self {
+        Ok(Self {
             device,
             children,
             pci_id,
-        }
+        })
     }
 
     /// Return the card index `N` if a child with sysname `cardN` is found.
@@ -74,7 +77,7 @@ pub fn scan_drm_devices() -> eyre::Result<Vec<DrmDevice>> {
         {
             drm_device.children.push(dev);
         } else {
-            drm_devices.push(DrmDevice::new(parent, vec![dev]));
+            drm_devices.push(DrmDevice::new(parent, vec![dev]).unwrap());
         }
     }
 
@@ -83,6 +86,15 @@ pub fn scan_drm_devices() -> eyre::Result<Vec<DrmDevice>> {
 
     Ok(drm_devices)
 }
+
+#[derive(Debug)]
+pub struct NotPciDeviceError(udev::Device);
+impl std::fmt::Display for NotPciDeviceError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?} is not a PCI device", self.0)
+    }
+}
+impl std::error::Error for NotPciDeviceError {}
 
 #[derive(Debug, Clone, Copy)]
 struct PciId {
