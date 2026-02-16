@@ -115,9 +115,9 @@ impl ClientManager {
         let FDTarget::Path(target) = &fd.target else {
             return false;
         };
-        self.devnames
-            .iter()
-            .any(|n| n == target.file_name().unwrap())
+        target
+            .file_name()
+            .is_some_and(|file_name| self.devnames.iter().any(|n| n == file_name))
     }
 }
 
