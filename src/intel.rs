@@ -38,7 +38,7 @@ impl IntelGpuStatus {
 
 impl GpuStatus for IntelGpuStatus {
     fn update(&mut self, procs: ProcessesIter) -> eyre::Result<()> {
-        self.client_manager.update(procs);
+        self.client_manager.update(procs)?;
         Ok(())
     }
 

@@ -63,7 +63,7 @@ impl ClientManager {
         }
     }
 
-    pub fn update(&mut self, procs: ProcessesIter) {
+    pub fn update(&mut self, procs: ProcessesIter) -> io::Result<()> {
         self.current_tick += 1;
 
         for proc in procs.flatten() {
@@ -73,8 +73,10 @@ impl ClientManager {
         self.clients.retain(|c| c.last_seen == self.current_tick);
 
         for client in self.clients.iter_mut() {
-            client.update_engines().unwrap();
+            client.update_engines()?;
         }
+
+        Ok(())
     }
 
     fn scan_process_fds(&mut self, proc: Process) {
