@@ -1,10 +1,14 @@
 use std::path::PathBuf;
 
-use amdgpu_sysfs::gpu_handle::GpuHandle;
+use amdgpu_sysfs::{gpu_handle::GpuHandle, hw_mon::HwMon};
 use color_eyre::eyre::{Result, eyre};
 use regex::Regex;
+use uom::si::{
+    f32::Information, f32::Power, information::byte, power::watt,
+    thermodynamic_temperature::degree_celsius,
+};
 
-use crate::gpu_status::{GpuStatus, GpuStatusData};
+use crate::gpu_status::{GpuStatus, GpuStatusData, Temperature};
 
 pub struct AmdGpuStatus {
     amd_sys_fs: &'static AmdSysFS,
@@ -41,15 +45,18 @@ impl GpuStatus for AmdGpuStatus {
             mem_used: gpu_handle
                 .get_used_vram()
                 .ok()
-                .map(|v| v as f64 / 1024f64 / 1024f64), // convert to MiB from B
+                .map(|v| Information::new::<byte>(v as f32)),
             mem_total: gpu_handle
                 .get_total_vram()
                 .ok()
-                .map(|v| v as f64 / 1024f64 / 1024f64),
-            temperature: temp.map(|v| v.round() as u8),
-            power: hw_mon.get_power_input().ok(),
+                .map(|v| Information::new::<byte>(v as f32)),
+            temperature: temp.map(Temperature::new::<degree_celsius>),
+            power: hw_mon
+                .get_power_input()
+                .ok()
+                .map(|v| Power::new::<watt>(v as f32)),
             p_level: gpu_handle.get_power_force_performance_level().ok(),
-            fan_speed: hw_mon.get_fan_current().ok().map(|v| v as u8),
+            fan_speed: fan_percentage(hw_mon).ok(),
             ..Default::default()
         })
     }
@@ -98,4 +105,11 @@ impl AmdSysFS {
 
         Ok(drm_gpus)
     }
+}
+
+fn fan_percentage(hw_mon: &HwMon) -> Result<u8, amdgpu_sysfs::error::Error> {
+    let current_rpm = hw_mon.get_fan_current()? as f32;
+    let max_rpm = hw_mon.get_fan_max()? as f32;
+
+    Ok((current_rpm / max_rpm * 100.0).round().clamp(0.0, 100.0) as u8)
 }

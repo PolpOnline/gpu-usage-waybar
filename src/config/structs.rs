@@ -2,7 +2,11 @@ use color_eyre::Result;
 use serde::Deserialize;
 use smart_default::SmartDefault;
 
-use crate::{Args, formatter, gpu_status::GpuStatusData};
+use crate::{
+    Args,
+    formatter::{self, FormatSegments, fields::Field},
+    gpu_status::GpuStatusData,
+};
 
 #[derive(Default, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -54,17 +58,17 @@ pub struct TooltipConfig {
 
 impl TooltipConfig {
     pub const DEFAULT_FORMAT: &str = r"GPU: {gpu_utilization}%
-MEM USED: {mem_used}/{mem_total} MiB ({mem_utilization}%)
+MEM USED: {mem_used:MiB.0}/{mem_total:MiB} MiB ({mem_utilization}%)
 MEM R/W: {mem_rw}%
 DEC: {decoder_utilization}%
 ENC: {encoder_utilization}%
-TEMP: {temperature}°C
-POWER: {power}W
+TEMP: {temperature:c}°C
+POWER: {power:w}W
 PSTATE: {p_state}
 PLEVEL: {p_level}
 FAN SPEED: {fan_speed}%
-TX: {tx} MiB/s
-RX: {rx} MiB/s";
+TX: {tx:MiB.3} MiB/s
+RX: {rx:MiB.3} MiB/s";
 
     pub fn format(&self) -> &str {
         self.format.as_deref().unwrap_or(Self::DEFAULT_FORMAT)
@@ -86,10 +90,11 @@ RX: {rx} MiB/s";
         let re = formatter::get_regex();
 
         for line in self.format().split_inclusive('\n') {
-            // Check if ANY placeholder in the line has no value
-            let has_unavailable = re
-                .captures_iter(line)
-                .any(|caps| data.is_field_unavailable(&caps[1]));
+            // Check if ANY field string is invalid
+            let has_unavailable = re.captures_iter(line).any(|caps| {
+                let format_segments = FormatSegments::from_caps_unchecked(&caps);
+                Field::try_from(format_segments).map_or(true, |f| data.is_field_unavailable(f))
+            });
 
             if has_unavailable {
                 continue;
@@ -108,6 +113,7 @@ mod tests {
         config::structs::TooltipConfig,
         gpu_status::{GpuStatusData, PState},
     };
+    use uom::si::{f32::Information, information::mebibyte};
 
     /// Test that lines with unavailable fields are dropped.
     #[test]
@@ -116,8 +122,8 @@ mod tests {
             p_state: Some(PState::P0),
             p_level: None,
             fan_speed: None,
-            tx: Some(5.2),
-            rx: Some(6.7),
+            tx: Some(Information::new::<mebibyte>(5.0)),
+            rx: Some(Information::new::<mebibyte>(6.0)),
             ..Default::default()
         };
 
@@ -126,8 +132,8 @@ mod tests {
                 r"PSTATE: {p_state}
 PLEVEL: {p_level}
 FAN SPEED: {fan_speed}%
-TX: {tx} MiB/s
-RX: {rx} MiB/s"
+TX: {tx:MiB.0} MiB/s
+RX: {rx:MiB.0} MiB/s"
                     .to_string(),
             ),
         };
@@ -137,8 +143,8 @@ RX: {rx} MiB/s"
         assert_eq!(
             config.format.unwrap(),
             r"PSTATE: {p_state}
-TX: {tx} MiB/s
-RX: {rx} MiB/s"
+TX: {tx:MiB.0} MiB/s
+RX: {rx:MiB.0} MiB/s"
         );
     }
 
@@ -148,7 +154,7 @@ RX: {rx} MiB/s"
     fn test_retain_lines_with_multiple_placeholders() {
         let data = GpuStatusData {
             gpu_utilization: Some(50),
-            mem_used: Some(50.0),
+            mem_used: Some(Information::new::<mebibyte>(50.0)),
             mem_total: None, // This should cause the line to be dropped
             p_state: Some(PState::P0),
             p_level: None, // This should cause the line to be dropped
