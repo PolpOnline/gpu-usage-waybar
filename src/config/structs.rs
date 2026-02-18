@@ -58,6 +58,8 @@ pub struct TooltipConfig {
 
 impl TooltipConfig {
     pub const DEFAULT_FORMAT: &str = r"GPU: {gpu_utilization}%
+RENDER: {render_utilization}%
+VIDEO: {video_utilization}%
 MEM USED: {mem_used:MiB.0}/{mem_total:MiB} MiB ({mem_utilization}%)
 MEM R/W: {mem_rw}%
 DEC: {decoder_utilization}%
