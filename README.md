@@ -87,8 +87,8 @@ You can also set the output format with CLI args using `--text-format` and `--to
 | Field name | Description | Unit | AMD | NVIDIA | Intel |
 | :--- | :--- | :--- | :---: | :---: | :---: |
 | `gpu_utilization` | GPU utilization | % | ✅ | ✅ | ✅ (Max between render and video engine utilization) |
-| `render_utilization` | DRM render engine utilization | % | ✅ | ✅ | ✅ |
-| `video_utilization` | DRM video engine utilization | % | ✅ | ✅ | ✅ |
+| `render_utilization` | DRM render engine utilization | % | ❌ | ❌ |  ✅ |
+| `video_utilization` | DRM video engine utilization | % | ❌ | ❌ | ✅ |
 | `mem_used` | Memory used in MiB | [Memory units](#memory-units) | ✅ | ✅ | ❌ |
 | `mem_total` | Total memory in MiB | [Memory units](#memory-units) | ✅ | ✅ | ❌ |
 | `mem_rw` | Memory data bus utilization | % | ❌ | ✅ | ❌ |
