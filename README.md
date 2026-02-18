@@ -89,8 +89,8 @@ You can also set the output format with CLI args using `--text-format` and `--to
 | `gpu_utilization` | GPU utilization | % | ✅ | ✅ | ✅ (Max between render and video engine utilization) |
 | `render_utilization` | DRM render engine utilization | % | ❌ | ❌ |  ✅ |
 | `video_utilization` | DRM video engine utilization | % | ❌ | ❌ | ✅ |
-| `mem_used` | Memory used in MiB | [Memory units](#memory-units) | ✅ | ✅ | ❌ |
-| `mem_total` | Total memory in MiB | [Memory units](#memory-units) | ✅ | ✅ | ❌ |
+| `mem_used` | Memory used | [Memory units](#memory-units) | ✅ | ✅ | ❌ |
+| `mem_total` | Total memory | [Memory units](#memory-units) | ✅ | ✅ | ❌ |
 | `mem_rw` | Memory data bus utilization | % | ❌ | ✅ | ❌ |
 | `mem_utilization` | Memory utilization | % | ✅ | ✅ | ❌ |
 | `decoder_utilization` | Decoder utilization | % | ❌ | ✅ | ❌ |
@@ -100,8 +100,8 @@ You can also set the output format with CLI args using `--text-format` and `--to
 | `p_state` | (NVIDIA) Performance state | NVIDIA performance state | ❌ | ✅ | ❌ |
 | `p_level` | (AMD) Performance Level | AMD performance level | ✅ | ❌ | ❌ |
 | `fan_speed` | Fan speed in percent | % | ✅ | ✅ | ❌ |
-| `tx` | PCIe TX throughput in MiB/s | [Memory units](#memory-units) | ❌ | ✅ | ❌ |
-| `rx` | PCIe RX throughput in MiB/s | [Memory units](#memory-units) | ❌ | ✅ | ❌ |
+| `tx` | PCIe TX throughput per second | [Memory units](#memory-units) | ❌ | ✅ | ❌ |
+| `rx` | PCIe RX throughput per second | [Memory units](#memory-units) | ❌ | ✅ | ❌ |
 
 </details>
 
