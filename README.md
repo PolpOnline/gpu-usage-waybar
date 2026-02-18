@@ -6,17 +6,16 @@
 
 This is a simple tool I made to add GPU usage to Waybar.
 
-It is compatible with both NVIDIA and AMD cards
+It is compatible with NVIDIA, AMD, and Intel cards.
+
+# Requirements
+
+- Compile-time: Rust, `pkg-config`, and `libudev` **development** packages.
+- Runtime:
+    - For NVIDIA, you need the NVML library installed
+    - For AMD and Intel, no other things are required, because they use Linux file system.
 
 # Installation
-
-## Requirements
-
-- For NVIDIA, you need the NVML library installed
-
-- For AMD, the tool just uses the sysfs interface; you shouldn't need to install anything
-
-## Installation
 
 Install with `cargo`
 
@@ -85,22 +84,24 @@ You can also set the output format with CLI args using `--text-format` and `--to
 <details>
 <summary>Available fields</summary>
 
-| Field name | Description | Unit | AMD | NVIDIA |
-| :--- | :--- | :--- | :---: | :---: |
-| `gpu_utilization` | GPU utilization | % | ✅ | ✅ |
-| `mem_used` | Memory used in MiB | [Memory units](#memory-units) | ✅ | ✅ |
-| `mem_total` | Total memory in MiB | [Memory units](#memory-units) | ✅ | ✅ |
-| `mem_rw` | Memory data bus utilization | % | ❌ | ✅ |
-| `mem_utilization` | Memory utilization | % | ✅ | ✅ |
-| `decoder_utilization` | Decoder utilization | % | ❌ | ✅ |
-| `encoder_utilization` | Encoder utilization | % | ❌ | ✅ |
-| `temperature` | Temperature | c, f, k | ✅ | ✅ |
-| `power` | Power usage | w, kw | ✅ | ✅ |
-| `p_state` | (NVIDIA) Performance state | NVIDIA performance state | ❌ | ✅ |
-| `p_level` | (AMD) Performance Level | AMD performance level | ✅ | ❌ |
-| `fan_speed` | Fan speed in percent | % | ✅ | ✅ |
-| `tx` | PCIe TX throughput in MiB/s | [Memory units](#memory-units) | ❌ | ✅ |
-| `rx` | PCIe RX throughput in MiB/s | [Memory units](#memory-units) | ❌ | ✅ |
+| Field name | Description | Unit | AMD | NVIDIA | Intel |
+| :--- | :--- | :--- | :---: | :---: | :---: |
+| `gpu_utilization` | GPU utilization | % | ✅ | ✅ | ✅ (Max between render and video engine utilization) |
+| `render_utilization` | DRM render engine utilization | % | ✅ | ✅ | ✅ |
+| `video_utilization` | DRM video engine utilization | % | ✅ | ✅ | ✅ |
+| `mem_used` | Memory used in MiB | [Memory units](#memory-units) | ✅ | ✅ | ❌ |
+| `mem_total` | Total memory in MiB | [Memory units](#memory-units) | ✅ | ✅ | ❌ |
+| `mem_rw` | Memory data bus utilization | % | ❌ | ✅ | ❌ |
+| `mem_utilization` | Memory utilization | % | ✅ | ✅ | ❌ |
+| `decoder_utilization` | Decoder utilization | % | ❌ | ✅ | ❌ |
+| `encoder_utilization` | Encoder utilization | % | ❌ | ✅ | ❌ |
+| `temperature` | Temperature | c, f, k | ✅ | ✅ | ❌ |
+| `power` | Power usage | w, kw | ✅ | ✅ | ❌ |
+| `p_state` | (NVIDIA) Performance state | NVIDIA performance state | ❌ | ✅ | ❌ |
+| `p_level` | (AMD) Performance Level | AMD performance level | ✅ | ❌ | ❌ |
+| `fan_speed` | Fan speed in percent | % | ✅ | ✅ | ❌ |
+| `tx` | PCIe TX throughput in MiB/s | [Memory units](#memory-units) | ❌ | ✅ | ❌ |
+| `rx` | PCIe RX throughput in MiB/s | [Memory units](#memory-units) | ❌ | ✅ | ❌ |
 
 </details>
 
