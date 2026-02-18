@@ -75,8 +75,8 @@ RX: {rx:MiB.3} MiB/s"""
   e.g., `temperature:c` for Celsius or `temperature:f` for Fahrenheit.
   Available units are listed in the table below.
 - You can specify decimal places using `.places`, e.g., `temperature:f.2`.
-  > [!NOTE]
-  > You can only specify decimal places for fields with configurable units.
+> [!NOTE]
+> You can only specify decimal places for fields with configurable units.
 - The text format defaults to `"{gpu_utilization}%|{mem_utilization}%"`. 
 - The tooltip defaults to all fields that are supported by your GPU if not customized. 
 
