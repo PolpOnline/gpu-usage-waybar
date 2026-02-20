@@ -201,30 +201,29 @@ impl From<PerformanceState> for PState {
     }
 }
 
-/// Returns `true` if there is any process currently using a GPU.
+/// Returns `true` if any process is currently using a GPU.
 ///
-/// This function checks whether any `devnames` is opened by any process
-/// other than the current one, without waking up the GPU by scanning file descriptors.
+/// This function checks whether any device in `devnames` is opened by any process.
+/// It performs this check without waking up the GPU by scanning file descriptors.
 ///
 /// # Note
 ///
-/// Do not use
-/// [nvml_wrapper::device::Device::running_compute_processes_count] or
-/// [nvml_wrapper::device::Device::running_graphics_processes_count]
-/// as they wake up the GPU.
+/// Avoid using [`nvml_wrapper::device::Device::running_compute_processes_count`] or
+/// [`nvml_wrapper::device::Device::running_graphics_processes_count`],
+/// as these methods will wake up the GPU.
 ///
-/// [1] suggests checking `/dev/nvidia*`, but we didn't find a way to determine the `*`
-/// in a multiple GPU system. Thus, we check `devnames`, usually being `card*` and
-/// `renderD*`. This is tested to work.
+/// While [1] suggests checking `/dev/nvidia*`, we haven't find out how device index `*`
+/// in multi-GPU systems is determined. Instead, this function checks `devnames`
+/// (typically `card*` and `renderD*`).
+///
+/// We observed that monitoring tools like `nvtop` and `gpu-usage-waybar`, which
+/// only use NVML and do not perform GPU computation, only open `nvidia*` and
+/// do not open `card*/renderD*`. Conversely, any process performing GPU computation
+/// will open `card*/renderD*`.
 ///
 /// [1]: https://wiki.archlinux.org/title/PRIME#NVIDIA
 fn has_running_processes(procs: ProcessesIter, devnames: &[OsString]) -> bool {
     for proc in procs.flatten() {
-        if proc.pid == std::process::id() as i32 {
-            // Ignore self
-            continue;
-        }
-
         let Ok(fds) = proc.fd() else {
             continue;
         };
