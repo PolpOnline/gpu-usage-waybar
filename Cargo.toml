@@ -1,7 +1,8 @@
 [package]
 name = "gpu-usage-waybar"
+rust-version = "1.91.1"
 authors = ["PolpOnline"]
-version = "0.1.25"
+version = "0.1.26"
 edition = "2024"
 description = "A tool to display gpu usage in Waybar"
 license = "MIT"
@@ -9,21 +10,21 @@ readme = "README.md"
 repository = "https://github.com/PolpOnline/gpu-usage-waybar"
 
 [dependencies]
-amdgpu-sysfs = "0.19.0"
-clap = { version = "4.5.20", features = ["cargo", "derive"] }
-color-eyre = "0.6.3"
-etcetera = "0.11.0"
-nvml-wrapper = "0.11.0"
-regex = "1.11.1"
-serde = { version = "1.0.214", features = ["derive"] }
-sonic-rs = "0.5.0"
+amdgpu-sysfs = "0.19"
+clap = { version = "4.5", features = ["cargo", "derive"] }
+color-eyre = "0.6"
+etcetera = "0.11"
+nvml-wrapper = "0.12"
+regex = "1.12"
+serde = { version = "1.0", features = ["derive"] }
+sonic-rs = "0.5"
 smart-default = "0.7.1"
-strum = { version = "0.27.0", features = ["derive"] }
-toml = "0.9.0"
+strum = { version = "0.27", features = ["derive"] }
+toml = "1.0"
 procfs = "0.18.0"
-uom = "0.37.0"
 udev = { version = "0.9.3", features = ["hwdb"]}
 libc = "0.2.181"
+uom = "0.38.0"
 
 [profile.dev.package.backtrace]
 opt-level = 3
