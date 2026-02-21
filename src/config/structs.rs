@@ -23,10 +23,10 @@ impl ConfigFile {
             self.general.interval = interval;
         }
         if let Some(ref text_format) = args.text_format {
-            self.text.format = text_format.to_owned();
+            self.text.format = Format::new(text_format.to_owned());
         }
         if let Some(ref tooltip_format) = args.tooltip_format {
-            self.tooltip.format = Some(tooltip_format.to_owned());
+            self.tooltip.format = Format::new(tooltip_format.to_owned());
         }
 
         Ok(())
@@ -37,10 +37,24 @@ impl ConfigFile {
 #[serde(deny_unknown_fields)]
 #[serde(default)]
 pub struct TextConfig {
-    #[default("{gpu_utilization}%|{mem_utilization}%")]
-    pub format: String,
+    pub format: Format,
 }
 
+impl AssembleAvailables for TextConfig {
+    /// Set `self.format` to "{gpu_utilization}%|{mem_utilization}%"
+    /// if [Field::MemUtilization] in `handle` is available. Otherwise,
+    /// set `self.format` to "{gpu_utilization}%".
+    fn assemble_availables(&mut self, handle: &GpuHandle) {
+        let mut result = "{gpu_utilization}%".to_string();
+        if !handle.is_field_unavailable(Field::MemUtilization) {
+            result.push_str("|{mem_utilization}%");
+        }
+
+        self.format = Format::new(result);
+    }
+}
+
+// TODO: rearrange
 #[derive(Deserialize, SmartDefault)]
 #[serde(deny_unknown_fields)]
 #[serde(default)]
@@ -53,11 +67,17 @@ pub struct GeneralConfig {
 #[serde(deny_unknown_fields)]
 #[serde(default)]
 pub struct TooltipConfig {
-    format: Option<String>,
+    pub format: Format,
 }
 
-impl TooltipConfig {
-    pub const DEFAULT_FORMAT: &str = r"GPU: {gpu_utilization}%
+impl AssembleAvailables for TooltipConfig {
+    /// Assemble available lines in the tooltip default format.
+    ///
+    /// # Note
+    ///
+    /// The line is only added if **all** fields in the line are available.
+    fn assemble_availables(&mut self, handle: &GpuHandle) {
+        const DEFAULT_FORMAT: &str = r"GPU: {gpu_utilization}%
 RENDER: {render_utilization}%
 VIDEO: {video_utilization}%
 MEM USED: {mem_used:MiB.0}/{mem_total:MiB} MiB ({mem_utilization}%)
@@ -72,59 +92,54 @@ FAN SPEED: {fan_speed}%
 TX: {tx:MiB.3} MiB/s
 RX: {rx:MiB.3} MiB/s";
 
-    pub fn format(&self) -> &str {
-        self.format.as_deref().unwrap_or(Self::DEFAULT_FORMAT)
-    }
-
-    pub fn is_format_set(&self) -> bool {
-        self.format.is_some()
-    }
-
-    /// Retain lines that have available values in the format string.
-    ///
-    /// # Note
-    ///
-    /// This function modifies the `format` field in place.
-    /// If a line contains **any** placeholder without a corresponding value
-    /// in `data`, that entire line is removed from the format.
-    pub fn retain_lines_with_values(&mut self, handle: &GpuHandle) {
         let mut result = String::new();
         let re = formatter::get_regex();
 
-        for line in self.format().split_inclusive('\n') {
+        for line in DEFAULT_FORMAT.split_inclusive('\n') {
             // Check if ANY field string is invalid
             let has_unavailable = re.captures_iter(line).any(|caps| {
                 let format_segments = FormatSegments::from_caps_unchecked(&caps);
                 Field::try_from(format_segments).map_or(true, |f| handle.is_field_unavailable(f))
             });
 
-            if has_unavailable {
-                continue;
+            if !has_unavailable {
+                result.push_str(line);
             }
-
-            result.push_str(line);
         }
 
-        self.format = Some(result);
+        self.format = Format::new(result);
     }
+}
+
+#[derive(Deserialize, SmartDefault)]
+pub struct Format(pub Option<String>);
+
+impl Format {
+    pub fn new(s: String) -> Self {
+        Self(Some(s))
+    }
+
+    pub fn is_set(&self) -> bool {
+        self.0.is_some()
+    }
+}
+
+pub trait AssembleAvailables {
+    fn assemble_availables(&mut self, handle: &GpuHandle);
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::{
-        config::structs::TooltipConfig,
-        gpu_status::{
-            GetFieldError, GpuHandle, GpuStatus,
-            fields::{MemField, U8Field},
-        },
+        gpu_status::{GetFieldError, GpuHandle, GpuStatus, fields::MemField},
         nvidia::PState,
     };
     use color_eyre::eyre::Result;
     use uom::si::{f32::Information, information::mebibyte};
 
-    /// Test that lines with unavailable fields are dropped.
     #[test]
-    fn test_retain_some_fields() {
+    fn tooltip_assemble_availabes() {
         struct Data;
         impl GpuStatus for Data {
             fn get_pstate(&self) -> Result<PState, GetFieldError> {
@@ -144,41 +159,24 @@ mod tests {
         let handle = GpuHandle::new(Box::new(Data));
 
         let mut config = TooltipConfig {
-            format: Some(
-                r"PSTATE: {p_state}
-PLEVEL: {p_level}
-FAN SPEED: {fan_speed}%
-TX: {tx:MiB.0} MiB/s
-RX: {rx:MiB.0} MiB/s"
-                    .to_string(),
-            ),
+            format: Format(None),
         };
-
-        config.retain_lines_with_values(&handle);
+        config.assemble_availables(&handle);
 
         assert_eq!(
-            config.format.unwrap(),
+            config.format.0.unwrap(),
             r"PSTATE: {p_state}
-TX: {tx:MiB.0} MiB/s
-RX: {rx:MiB.0} MiB/s"
+TX: {tx:MiB.3} MiB/s
+RX: {rx:MiB.3} MiB/s"
         );
     }
 
     /// Test that lines with multiple placeholders are dropped if any of them
     /// have no value.
     #[test]
-    fn test_retain_lines_with_multiple_placeholders() {
+    fn tooltip_assemble_availables_multiple_placeholders() {
         struct Data;
         impl GpuStatus for Data {
-            fn get_pstate(&self) -> Result<PState, GetFieldError> {
-                Ok(PState::P0)
-            }
-            fn get_u8_field(&self, field: U8Field) -> Result<u8, GetFieldError> {
-                match field {
-                    U8Field::GpuUtilization => Ok(50),
-                    _ => Err(GetFieldError::BrandUnsupported),
-                }
-            }
             fn get_mem_field(&self, field: MemField) -> Result<Information, GetFieldError> {
                 match field {
                     MemField::MemUsed => Ok(Information::new::<mebibyte>(50.0)),
@@ -188,15 +186,44 @@ RX: {rx:MiB.0} MiB/s"
         }
         let handle = GpuHandle::new(Box::new(Data));
 
-        let format = r"GPU: {gpu_utilization}% | MEM: {mem_utilization}%
-+PSTATE: {p_state} | PLEVEL: {p_level}";
-
         let mut config = TooltipConfig {
-            format: Some(format.to_string()),
+            format: Format(None),
         };
 
-        config.retain_lines_with_values(&handle);
+        config.assemble_availables(&handle);
         // Both lines should be dropped because each has at least one unavailable field
-        assert_eq!(config.format, Some("".to_string()));
+        assert_eq!(config.format.0.unwrap(), "".to_string());
+    }
+
+    #[test]
+    fn text_assemble_availables() {
+        struct Data1;
+        impl GpuStatus for Data1 {} // No mem_utilization
+        let handle = GpuHandle::new(Box::new(Data1));
+
+        let mut config = TextConfig {
+            format: Format(None),
+        };
+
+        config.assemble_availables(&handle);
+        assert_eq!(config.format.0.unwrap(), "{gpu_utilization}%".to_string());
+
+        struct Data2;
+        impl GpuStatus for Data2 {
+            fn get_mem_field(&self, _field: MemField) -> Result<Information, GetFieldError> {
+                Ok(Information::new::<mebibyte>(100.0))
+            }
+        }
+        let handle = GpuHandle::new(Box::new(Data2));
+
+        let mut config = TextConfig {
+            format: Format(None),
+        };
+
+        config.assemble_availables(&handle);
+        assert_eq!(
+            config.format.0.unwrap(),
+            "{gpu_utilization}%|{mem_utilization}%".to_string()
+        )
     }
 }

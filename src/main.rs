@@ -17,8 +17,8 @@ use serde::Serialize;
 use udev::Hwdb;
 
 use crate::{
-    amd::AmdGpuStatus, drm::device::DrmDevice, formatter::State, gpu_status::GpuHandle,
-    intel::IntelGpuStatus, nvidia::NvidiaGpuStatus,
+    amd::AmdGpuStatus, config::structs::AssembleAvailables, drm::device::DrmDevice,
+    formatter::State, gpu_status::GpuHandle, intel::IntelGpuStatus, nvidia::NvidiaGpuStatus,
 };
 
 fn get_handle(gpu: &DrmDevice, hwdb: &Hwdb) -> Result<GpuHandle> {
@@ -100,16 +100,19 @@ fn main() -> Result<()> {
     print_gpu(args.gpu, gpu, &hwdb)?;
     let mut gpu_status_handle = get_handle(gpu, &hwdb)?;
 
-    // If the the user didn't set a custom tooltip format,
+    // If the the user didn't set custom text/tooltip formats,
     // automatically hide any unavailable fields.
-    if !config.tooltip.is_format_set() {
-        let procs = procfs::process::all_processes()?;
-        gpu_status_handle.data.update(procs)?;
-        config.tooltip.retain_lines_with_values(&gpu_status_handle);
+    let procs = procfs::process::all_processes()?;
+    gpu_status_handle.data.update(procs)?;
+    if !config.text.format.is_set() {
+        config.text.assemble_availables(&gpu_status_handle);
+    }
+    if !config.tooltip.format.is_set() {
+        config.tooltip.assemble_availables(&gpu_status_handle);
     }
 
-    let mut text_state = State::try_from_format(&config.text.format)?;
-    let mut tooltip_state = State::try_from_format(config.tooltip.format())?;
+    let mut text_state = State::try_from_format(&config.text.format.0.unwrap())?;
+    let mut tooltip_state = State::try_from_format(&config.tooltip.format.0.unwrap())?;
 
     let update_interval = Duration::from_millis(config.general.interval);
 
