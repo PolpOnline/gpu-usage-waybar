@@ -1,12 +1,11 @@
-pub mod fields;
 pub mod units;
 
 use regex::Regex;
 use std::fmt::Debug;
 
-use crate::{
-    formatter::fields::*,
-    gpu_status::{GpuStatusData, WriteFieldError},
+use crate::gpu_status::{
+    GpuHandle,
+    fields::{Field, UnitParseError},
 };
 
 #[derive(Debug, PartialEq)]
@@ -25,18 +24,15 @@ impl State {
     ///
     /// Writes `"N/A"` if a variable segment in `chunks` is [`Field::Unknown`],
     /// or if the corresponding field in `data` is `None`.
-    pub fn assemble(&mut self, data: &GpuStatusData) {
+    pub fn assemble(&mut self, handle: &GpuHandle) {
         self.buffer.clear();
 
         for chunk in &self.chunks {
             match chunk {
                 Chunk::Static(s) => self.buffer.push_str(s),
                 Chunk::Variable(field) => {
-                    if matches!(
-                        // write_field() writes "N/A" if field is Field::Unknown.
-                        data.write_field(*field, &mut self.buffer),
-                        Err(WriteFieldError::FieldIsNone)
-                    ) {
+                    // write_field() writes "N/A" if field is Field::Unknown.
+                    if handle.write_field(*field, &mut self.buffer).is_err() {
                         self.buffer.push_str("N/A");
                     }
                 }
@@ -56,9 +52,9 @@ impl State {
 
 #[derive(Debug, Clone, Copy)]
 pub struct FormatSegments<'a> {
-    field: &'a str,
-    unit: Option<&'a str>,
-    precision: Option<&'a str>,
+    pub field: &'a str,
+    pub unit: Option<&'a str>,
+    pub precision: Option<&'a str>,
 }
 
 impl<'a> FormatSegments<'a> {
@@ -132,9 +128,11 @@ fn parse(format: &str) -> Result<Vec<Chunk>, UnitParseError> {
 
 #[cfg(test)]
 mod tests {
-    use crate::formatter::units::{MemUnit, TemperatureUnit};
-
     use super::*;
+    use crate::{
+        formatter::units::{MemUnit, TemperatureUnit},
+        gpu_status::fields::*,
+    };
 
     #[test]
     fn test_parse() {
@@ -150,11 +148,11 @@ RX: {rx:MiB.2} MiB/s";
             chunks,
             vec![
                 Chunk::Static("PSTATE: ".to_string()),
-                Chunk::Variable(Field::Simple(SimpleField::PState)),
+                Chunk::Variable(Field::PState),
                 Chunk::Static("\nPLEVEL: ".to_string()),
-                Chunk::Variable(Field::Simple(SimpleField::PLevel)),
+                Chunk::Variable(Field::PLevel),
                 Chunk::Static("\nFAN SPEED: ".to_string()),
-                Chunk::Variable(Field::Simple(SimpleField::FanSpeed)),
+                Chunk::Variable(Field::U8(U8Field::FanSpeed)),
                 Chunk::Static("%\nTX: ".to_string()),
                 Chunk::Variable(Field::Mem {
                     field: MemField::Tx,

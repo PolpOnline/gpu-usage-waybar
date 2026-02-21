@@ -9,7 +9,7 @@ use crate::formatter::{FormatSegments, units::*};
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Field {
-    Simple(SimpleField),
+    U8(U8Field),
     Mem {
         field: MemField,
         unit: MemUnit,
@@ -23,6 +23,12 @@ pub enum Field {
         unit: PowerUnit,
         precision: Option<usize>,
     },
+    /// (NVIDIA) Performance state.
+    PState,
+    /// (AMD) Performance Level
+    PLevel,
+    /// Memory utilization in percent computed as [MemField::MemUsed] / [MemField::MemTotal].
+    MemUtilization,
     Unknown,
 }
 
@@ -50,14 +56,17 @@ impl TryFrom<FormatSegments<'_>> for Field {
         }
 
         let field = match segments.field {
+            "p_level" => Field::PLevel,
+            "p_state" => Field::PState,
+            "mem_utilization" => Field::MemUtilization,
+            "power" => {
+                let (unit, precision) = parse_unit_and_precision!(PowerUnit, UnitParseError::Power);
+                Field::Power { unit, precision }
+            }
             "temperature" => {
                 let (unit, precision) =
                     parse_unit_and_precision!(TemperatureUnit, UnitParseError::Temperature);
                 Field::Temperature { unit, precision }
-            }
-            "power" => {
-                let (unit, precision) = parse_unit_and_precision!(PowerUnit, UnitParseError::Power);
-                Field::Power { unit, precision }
             }
             field_name => {
                 if let Ok(f) = MemField::from_str(field_name) {
@@ -70,8 +79,8 @@ impl TryFrom<FormatSegments<'_>> for Field {
                         precision,
                     }
                 } else {
-                    SimpleField::from_str(field_name)
-                        .map(Field::Simple)
+                    U8Field::from_str(field_name)
+                        .map(Field::U8)
                         .unwrap_or(Field::Unknown)
                 }
             }
@@ -83,23 +92,33 @@ impl TryFrom<FormatSegments<'_>> for Field {
 
 #[derive(Debug, Clone, Copy, PartialEq, Display, EnumString)]
 #[strum(serialize_all = "snake_case")]
-pub enum SimpleField {
+pub enum U8Field {
+    /// GPU utilization in percent.
     GpuUtilization,
+    /// Render engine utilization in percent.
+    RenderUtilization,
+    /// Video engine utilization in percent.
+    VideoUtilization,
+    /// Memory data bus utilization in percent.
     MemRw,
-    MemUtilization,
+    /// Decoder utilization in percent.
     DecoderUtilization,
+    /// Encoder utilization in percent.
     EncoderUtilization,
-    PState,
-    PLevel,
+    /// Fan speed in percent.
     FanSpeed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Display, EnumString)]
 #[strum(serialize_all = "snake_case")]
 pub enum MemField {
+    /// Memory used.
     MemUsed,
+    /// Total memory.
     MemTotal,
+    /// PCIe TX throughput per second.
     Tx,
+    /// PCIe RX throughput per second.
     Rx,
 }
 

@@ -1,57 +1,71 @@
 pub mod amd;
 pub mod config;
+pub mod drm;
 pub mod formatter;
 pub mod gpu_status;
+pub mod intel;
 pub mod nvidia;
 
 use std::{
     io::{Write, stdout},
-    sync::OnceLock,
     time::Duration,
 };
 
 use clap::Parser;
 use color_eyre::eyre::{Result, eyre};
-use nvml_wrapper::Nvml;
 use serde::Serialize;
+use udev::Hwdb;
 
 use crate::{
-    amd::{AmdGpuStatus, AmdSysFS},
-    formatter::State,
-    gpu_status::{GpuStatus, GpuStatusData},
-    nvidia::NvidiaGpuStatus,
+    amd::AmdGpuStatus, config::structs::AssembleAvailables, drm::device::DrmDevice,
+    formatter::State, gpu_status::GpuHandle, intel::IntelGpuStatus, nvidia::NvidiaGpuStatus,
 };
 
-pub enum Instance {
-    Nvml(Box<Nvml>),
-    Amd(Box<AmdSysFS>),
-}
+fn get_handle(gpu: &DrmDevice, hwdb: &Hwdb) -> Result<GpuHandle> {
+    let vendor_name = gpu
+        .get_vendor_name(hwdb)?
+        .into_string()
+        .unwrap()
+        .to_lowercase();
 
-impl Instance {
-    /// Get the instance based on the GPU brand.
-    pub fn new() -> Result<Self> {
-        let modules = procfs::modules()?;
-
-        if modules.contains_key("nvidia") {
-            return Ok(Self::Nvml(Box::new(Nvml::init()?)));
-        }
-        if modules.contains_key("amdgpu") {
-            return Ok(Self::Amd(Box::new(AmdSysFS::init()?)));
-        }
-
-        Err(eyre!("No supported GPU found"))
+    // we could use equal to match vendor, but using contains is always safer
+    // vendor_name == "Nvidia Corporation"
+    if vendor_name.contains("nvidia") {
+        return Ok(GpuHandle::new(Box::new(NvidiaGpuStatus::new(
+            gpu.device.sysname().to_string_lossy().to_string(),
+            gpu.children
+                .iter()
+                .map(|c| c.sysname().to_owned())
+                .collect(),
+        )?)));
     }
-}
+    // vendor_name == "Advanced Micro Devices, Inc. [AMD/ATI]"
+    if vendor_name.contains("advanced micro devices") {
+        return Ok(GpuHandle::new(Box::new(AmdGpuStatus::new(
+            gpu.device.syspath().to_path_buf(),
+        )?)));
+    }
+    // vendor_name == "Intel Corporation"
+    if vendor_name.contains("intel") {
+        return Ok(GpuHandle::new(Box::new(IntelGpuStatus::new(
+            gpu.children
+                .iter()
+                .map(|c| c.sysname().to_owned())
+                .collect(),
+        ))));
+    }
 
-pub static INSTANCE: OnceLock<Instance> = OnceLock::new();
-
-fn get_instance() -> &'static Instance {
-    INSTANCE.get_or_init(|| Instance::new().unwrap())
+    Err(eyre!("No supported GPU found"))
 }
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 pub struct Args {
+    /// The GPU index you want to monitor.
+    /// The index is typically the `X` in /dev/dri/cardX.
+    #[arg(long, default_value = "0")]
+    gpu: usize,
+
     /// Polling interval in milliseconds
     #[arg(long)]
     interval: Option<u64>,
@@ -78,30 +92,43 @@ fn main() -> Result<()> {
 
     config.merge_args_into_config(&args)?;
 
-    let gpu_status_handler: Box<dyn GpuStatus> = match get_instance() {
-        Instance::Nvml(nvml) => Box::new(NvidiaGpuStatus::new(nvml)?),
-        Instance::Amd(amd_sys_fs) => Box::new(AmdGpuStatus::new(amd_sys_fs)?),
-    };
+    let gpus = drm::device::scan_drm_devices()?;
+    let gpu = gpus
+        .get(args.gpu)
+        .ok_or(eyre!("Cannot find GPU {}", args.gpu))?;
+    let hwdb = Hwdb::new()?;
+    print_gpu(args.gpu, gpu, &hwdb)?;
+    let mut gpu_status_handle = get_handle(gpu, &hwdb)?;
 
-    // If the the user didn't set a custom tooltip format,
+    // If the the user didn't set custom text/tooltip formats,
     // automatically hide any unavailable fields.
-    if !config.tooltip.is_format_set() {
-        // Fetch the data once to determine which fields are available
-        let gpu_status_data = gpu_status_handler.compute_force()?;
-        config.tooltip.retain_lines_with_values(&gpu_status_data);
+    let procs = procfs::process::all_processes()?;
+    gpu_status_handle.data.update(procs)?;
+    if !config.text.format.is_set() {
+        config.text.assemble_availables(&gpu_status_handle);
+    }
+    if !config.tooltip.format.is_set() {
+        config.tooltip.assemble_availables(&gpu_status_handle);
     }
 
-    let mut text_state = State::try_from_format(&config.text.format)?;
-    let mut tooltip_state = State::try_from_format(config.tooltip.format())?;
+    let mut text_state = State::try_from_format(&config.text.format.0.unwrap())?;
+    let mut tooltip_state = State::try_from_format(&config.tooltip.format.0.unwrap())?;
 
     let update_interval = Duration::from_millis(config.general.interval);
 
     let mut stdout_lock = stdout().lock();
 
     loop {
-        let gpu_status_data = gpu_status_handler.compute()?;
+        let Ok(procs) = procfs::process::all_processes() else {
+            eprintln!("Failed to read /proc");
+            std::thread::sleep(update_interval);
+            continue;
+        };
+        if let Err(err) = gpu_status_handle.data.update(procs) {
+            eprintln!("{err}");
+        }
 
-        let output = format_output(&gpu_status_data, &mut text_state, &mut tooltip_state);
+        let output = format_output(&gpu_status_handle, &mut text_state, &mut tooltip_state);
 
         writeln!(&mut stdout_lock, "{}", sonic_rs::to_string(&output)?)?;
 
@@ -109,14 +136,32 @@ fn main() -> Result<()> {
     }
 }
 
+fn print_gpu(gpu_index: usize, gpu: &DrmDevice, hwdb: &Hwdb) -> Result<()> {
+    print!(
+        "GPU {}: {}, Bus ID: {}, Nodes: ",
+        gpu_index,
+        gpu.get_model_name(hwdb)?.to_str().unwrap(),
+        gpu.device.sysname().to_str().unwrap()
+    );
+
+    let mut nodes = gpu.children.iter().map(|dev| dev.sysname());
+    let first = nodes.next().unwrap().to_str().unwrap().to_owned();
+    let nodes = nodes.fold(first, |a, b| {
+        format!("{}, {}", a.as_str(), b.to_str().unwrap())
+    });
+    println!("{nodes}");
+
+    Ok(())
+}
+
 fn format_output<'t, 'u>(
-    gpu_status: &GpuStatusData,
+    handle: &GpuHandle,
     text_state: &'t mut State,
     tooltip_state: &'u mut State,
 ) -> OutputFormat<'t, 'u> {
     OutputFormat {
-        text: gpu_status.get_text(text_state),
-        tooltip: gpu_status.get_tooltip(tooltip_state),
+        text: handle.get_text(text_state),
+        tooltip: handle.get_tooltip(tooltip_state),
     }
 }
 
