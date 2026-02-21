@@ -46,7 +46,7 @@ impl AssembleAvailables for TextConfig {
     /// set `self.format` to "{gpu_utilization}%".
     fn assemble_availables(&mut self, handle: &GpuHandle) {
         let mut result = "{gpu_utilization}%".to_string();
-        if !handle.is_field_unavailable(Field::MemUtilization) {
+        if handle.is_field_available(Field::MemUtilization) {
             result.push_str("|{mem_utilization}%");
         }
 
@@ -96,13 +96,15 @@ RX: {rx:MiB.3} MiB/s";
         let re = formatter::get_regex();
 
         for line in DEFAULT_FORMAT.split_inclusive('\n') {
-            // Check if ANY field string is invalid
-            let has_unavailable = re.captures_iter(line).any(|caps| {
+            // Check if ALL field string is invalid
+            let is_all_available = re.captures_iter(line).all(|caps| {
                 let format_segments = FormatSegments::from_caps_unchecked(&caps);
-                Field::try_from(format_segments).map_or(true, |f| handle.is_field_unavailable(f))
+                // unwrapping from DEFAULT_FORMAT should be safe
+                let field = Field::try_from(format_segments).unwrap();
+                handle.is_field_available(field)
             });
 
-            if !has_unavailable {
+            if is_all_available {
                 result.push_str(line);
             }
         }
@@ -175,8 +177,8 @@ RX: {rx:MiB.3} MiB/s"
     /// have no value.
     #[test]
     fn tooltip_assemble_availables_multiple_placeholders() {
-        struct Data;
-        impl GpuStatus for Data {
+        struct Data1;
+        impl GpuStatus for Data1 {
             fn get_mem_field(&self, field: MemField) -> Result<Information, GetFieldError> {
                 match field {
                     MemField::MemUsed => Ok(Information::new::<mebibyte>(50.0)),
@@ -184,15 +186,41 @@ RX: {rx:MiB.3} MiB/s"
                 }
             }
         }
-        let handle = GpuHandle::new(Box::new(Data));
+        let handle = GpuHandle::new(Box::new(Data1));
 
         let mut config = TooltipConfig {
             format: Format(None),
         };
 
         config.assemble_availables(&handle);
-        // Both lines should be dropped because each has at least one unavailable field
+        // All lines should be dropped, including
+        // "MEM USED: {mem_used:MiB.0}/{mem_total:MiB} MiB ({mem_utilization}%)"
+        // because mem_total and mem_utilization are Err.
         assert_eq!(config.format.0.unwrap(), "".to_string());
+
+        struct Data2;
+        impl GpuStatus for Data2 {
+            fn get_mem_field(&self, field: MemField) -> Result<Information, GetFieldError> {
+                match field {
+                    MemField::MemUsed => Ok(Information::new::<mebibyte>(50.0)),
+                    MemField::MemTotal => Ok(Information::new::<mebibyte>(50.0)),
+                    _ => Err(GetFieldError::BrandUnsupported),
+                }
+            }
+        }
+        let handle = GpuHandle::new(Box::new(Data2));
+
+        let mut config = TooltipConfig {
+            format: Format(None),
+        };
+
+        config.assemble_availables(&handle);
+        // "MEM USED: {mem_used:MiB.0}/{mem_total:MiB} MiB ({mem_utilization}%)"
+        // should retain becuase all fields here are available.
+        assert_eq!(
+            config.format.0.unwrap(),
+            "MEM USED: {mem_used:MiB.0}/{mem_total:MiB} MiB ({mem_utilization}%)\n".to_string()
+        );
     }
 
     #[test]

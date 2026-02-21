@@ -132,29 +132,28 @@ impl GpuHandle {
 
         Ok(())
     }
-    /// Returns `true` if the field is [Field::Unknown] or the corresponding result is
-    /// [GetFieldError].
-    pub fn is_field_unavailable(&self, field: Field) -> bool {
+    /// Returns `true` if the field is not [Field::Unknown] or
+    /// the corresponding result is `Ok`.
+    pub fn is_field_available(&self, field: Field) -> bool {
         match field {
-            Field::Unknown => true,
-            Field::U8(field) => self.data.get_u8_field(field).is_err(),
-
+            Field::Unknown => false,
+            Field::U8(field) => self.data.get_u8_field(field).is_ok(),
             Field::Mem {
                 field,
                 unit: _,
                 precision: _,
-            } => self.data.get_mem_field(field).is_err(),
+            } => self.data.get_mem_field(field).is_ok(),
             Field::Temperature {
                 unit: _,
                 precision: _,
-            } => self.data.get_temperature().is_err(),
+            } => self.data.get_temperature().is_ok(),
             Field::Power {
                 unit: _,
                 precision: _,
-            } => self.data.get_power().is_err(),
-            Field::PState => self.data.get_pstate().is_err(),
-            Field::PLevel => self.data.get_plevel().is_err(),
-            Field::MemUtilization => self.compute_mem_usage().is_none(),
+            } => self.data.get_power().is_ok(),
+            Field::PState => self.data.get_pstate().is_ok(),
+            Field::PLevel => self.data.get_plevel().is_ok(),
+            Field::MemUtilization => self.compute_mem_usage().is_some(),
         }
     }
 
