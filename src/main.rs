@@ -108,7 +108,10 @@ fn main() -> Result<()> {
     }
 }
 
-// {"text":"Idle","tooltip":"GPU idle"}
+/// Write `data` to waybar-flavored json:
+/// ```json
+/// {"text": "...", "tooltip": "..."}
+/// ```
 fn write_json(
     buffer: &mut impl Write,
     data: &GpuStatusData,

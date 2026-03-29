@@ -81,6 +81,13 @@ pub fn get_regex() -> Regex {
     Regex::new(r"\{(\w+)(?::(\w+)(?:\.(\d+))?)?\}").unwrap()
 }
 
+/// Writes `v` to `buf` with `precision` decimal digits.
+///
+/// # Note
+///
+/// Avoid using large values for `precision` or `v` to prevent overflow.
+/// This function uses [std::f32]'s [std::fmt::Display] implementation.
+/// The value `v` will be multiplied by 10^`precision`.
 pub fn write_with_precision(buf: &mut impl Write, precision: usize, v: f32) -> io::Result<()> {
     let m = 10f32.powi(precision as i32);
     let v = (v * m).round() / m;
