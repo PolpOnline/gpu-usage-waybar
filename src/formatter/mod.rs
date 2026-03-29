@@ -2,7 +2,10 @@ pub mod fields;
 pub mod units;
 
 use regex::Regex;
-use std::fmt::Debug;
+use std::{
+    fmt::Debug,
+    io::{self, Write},
+};
 
 use crate::{
     formatter::fields::*,
@@ -17,39 +20,41 @@ pub enum Chunk {
 
 pub struct State {
     pub chunks: Vec<Chunk>,
-    pub buffer: String,
 }
 
 impl State {
-    /// Assembles `self.chunks` into `self.buffer` using the provided `data`.
+    /// Writes `self.chunks` into `buffer` using the provided `data`.
     ///
     /// Writes `"N/A"` if a variable segment in `chunks` is [`Field::Unknown`],
     /// or if the corresponding field in `data` is `None`.
-    pub fn assemble(&mut self, data: &GpuStatusData) {
-        self.buffer.clear();
-
+    pub fn write(&self, buffer: &mut impl Write, data: &GpuStatusData) -> io::Result<()> {
         for chunk in &self.chunks {
             match chunk {
-                Chunk::Static(s) => self.buffer.push_str(s),
+                Chunk::Static(s) => write!(buffer, "{s}")?,
                 Chunk::Variable(field) => {
                     if matches!(
                         // write_field() writes "N/A" if field is Field::Unknown.
-                        data.write_field(*field, &mut self.buffer),
+                        data.write_field(*field, buffer),
                         Err(WriteFieldError::FieldIsNone)
                     ) {
-                        self.buffer.push_str("N/A");
+                        write!(buffer, "N/A")?;
                     }
                 }
             }
         }
+
+        Ok(())
     }
 }
 
 impl State {
     pub fn try_from_format(format: &str) -> Result<State, UnitParseError> {
+        // Make line breaks literal (\n -> \\n),
+        // because we don't want to flush stdout
+        let format = format.replace('\n', "\\n");
+
         Ok(Self {
-            chunks: parse(format)?,
-            buffer: String::new(),
+            chunks: parse(&format)?,
         })
     }
 }
@@ -76,29 +81,12 @@ pub fn get_regex() -> Regex {
     Regex::new(r"\{(\w+)(?::(\w+)(?:\.(\d+))?)?\}").unwrap()
 }
 
-pub fn trim_trailing_zeros(buf: &mut String, scan_end_index: usize) {
-    let Some(last_dot_pos) = buf.rfind('.') else {
-        return;
-    };
-
-    // do not trim zeros if the last dot pos is before scan_end_index
-    if last_dot_pos <= scan_end_index {
-        return;
-    }
-
-    let mut end = buf.len();
-
-    while end > last_dot_pos + 1 && buf.as_bytes()[end - 1] == b'0' {
-        end -= 1;
-    }
-
-    // If only '.' left
-    if end == last_dot_pos + 1 {
-        end -= 1;
-    }
-
-    buf.truncate(end);
+pub fn write_with_precision(buf: &mut impl Write, precision: usize, v: f32) -> io::Result<()> {
+    let m = 10f32.powi(precision as i32);
+    let v = (v * m).round() / m;
+    write!(buf, "{v}")
 }
+
 fn parse(format: &str) -> Result<Vec<Chunk>, UnitParseError> {
     let re = get_regex();
     let mut chunks = Vec::new();
@@ -199,37 +187,24 @@ RX: {rx:MiB.2} MiB/s";
     }
 
     #[test]
-    fn test_trim_trailing_zeros() {
-        let mut buf = "1.50000".to_string();
-        trim_trailing_zeros(&mut buf, 0);
-        assert_eq!(buf, "1.5");
-    }
+    fn write_with_precision_zeros() {
+        let mut buf = Vec::new();
+        let precision = 5;
+        write_with_precision(&mut buf, precision, 12.34).unwrap();
 
-    #[test]
-    fn test_trim_trailing_zeros_and_dot() {
-        let mut buf = "1.00000".to_string();
-        trim_trailing_zeros(&mut buf, 0);
-        assert_eq!(buf, "1");
-    }
+        // we don't want trailing zeros
+        assert_eq!(String::from_utf8(buf).unwrap(), "12.34");
 
-    #[test]
-    fn test_trim_trailing_zeros_without_decimal() {
-        let mut buf = "10000".to_string();
-        trim_trailing_zeros(&mut buf, 0);
-        assert_eq!(buf, "10000");
-    }
+        let mut buf = Vec::new();
+        write_with_precision(&mut buf, precision, 12.01234).unwrap();
 
-    #[test]
-    fn test_trim_trailing_zeros_with_previous_decimals() {
-        let mut buf = "100.00 120".to_string();
-        trim_trailing_zeros(&mut buf, 7);
-        assert_eq!(buf, "100.00 120");
-    }
+        // full digits
+        assert_eq!(String::from_utf8(buf).unwrap(), "12.01234");
 
-    #[test]
-    fn test_trim_trailing_zeros_with_mutiple_dots() {
-        let mut buf = "100.00 120.0 500.000".to_string();
-        trim_trailing_zeros(&mut buf, 13);
-        assert_eq!(buf, "100.00 120.0 500");
+        let mut buf = Vec::new();
+        write_with_precision(&mut buf, precision, 12.012343).unwrap();
+
+        // only 5 digits
+        assert_eq!(String::from_utf8(buf).unwrap(), "12.01234");
     }
 }

@@ -1,10 +1,13 @@
 use amdgpu_sysfs::gpu_handle::PerformanceLevel;
 use color_eyre::eyre::Result;
-use std::fmt::{Display, Write};
+use std::{
+    fmt::Display,
+    io::{self, Write},
+};
 use strum::Display;
 use uom::si::{f32::Information, f32::Power};
 
-use crate::formatter::{self, fields::*, units::*, *};
+use crate::formatter::{fields::*, units::*, *};
 
 pub type Temperature = uom::si::f32::ThermodynamicTemperature;
 
@@ -52,46 +55,46 @@ impl GpuStatusData {
         }
     }
 
-    pub fn get_text<'a>(&self, state: &'a mut State) -> &'a str {
+    pub fn write_text(&self, state: &State, buffer: &mut impl Write) -> io::Result<()> {
         if !self.powered_on {
-            return "Off";
+            return write!(buffer, "Off");
         }
 
         if !self.has_running_processes {
-            return "Idle";
+            return write!(buffer, "Idle");
         }
 
-        state.assemble(self);
-        &state.buffer
+        state.write(buffer, self)
     }
 
-    pub fn get_tooltip<'a>(&self, state: &'a mut State) -> &'a str {
+    pub fn write_tooltip(&self, state: &State, buffer: &mut impl Write) -> io::Result<()> {
         if !self.powered_on {
-            return "GPU powered off";
+            return write!(buffer, "GPU powered off");
         }
 
         if !self.has_running_processes {
-            return "GPU idle";
+            return write!(buffer, "GPU idle");
         }
 
-        state.assemble(self);
-        &state.buffer
+        state.write(buffer, self)
     }
 
     /// Write `field` value to `buffer`.
     ///
     /// - Writes "N/A" if `field` is [Field::Unknown].
     /// - Returns [WriteFieldError::FieldIsNone] if `field` is `None`.
-    pub fn write_field(&self, field: Field, buffer: &mut String) -> Result<(), WriteFieldError> {
-        let scan_end_index = buffer.len();
-
+    pub fn write_field(
+        &self,
+        field: Field,
+        buffer: &mut impl Write,
+    ) -> Result<(), WriteFieldError> {
         macro_rules! u {
             ($val:expr, $unit:expr, $precision:expr) => {{
                 let v = $val.ok_or(WriteFieldError::FieldIsNone)?;
                 let v = $unit.compute(v);
 
                 match $precision {
-                    Some(precision) => write!(buffer, "{:.*}", precision, v).unwrap(),
+                    Some(precision) => write_with_precision(buffer, precision, v).unwrap(),
                     None => write!(buffer, "{v}").unwrap(),
                 }
             }};
@@ -106,10 +109,8 @@ impl GpuStatusData {
             } => u!(self.get_mem_field(field), unit, precision),
             Field::Temperature { unit, precision } => u!(self.temperature, unit, precision),
             Field::Power { unit, precision } => u!(self.power, unit, precision),
-            Field::Unknown => buffer.push_str("N/A"),
+            Field::Unknown => write!(buffer, "N/A").unwrap(),
         };
-
-        formatter::trim_trailing_zeros(buffer, scan_end_index);
 
         Ok(())
     }
@@ -157,7 +158,7 @@ impl GpuStatusData {
     fn write_simple_field(
         &self,
         field: SimpleField,
-        buffer: &mut String,
+        buffer: &mut impl Write,
     ) -> Result<(), WriteFieldError> {
         if let Some(field_display) = self.get_simple_field_display(field) {
             write!(buffer, "{field_display}").unwrap();
@@ -242,7 +243,7 @@ mod tests {
             temperature: Some(Temperature::new::<degree_celsius>(35.12345)),
             ..Default::default()
         };
-        let mut buf = String::new();
+        let mut buf = Vec::new();
 
         data.write_field(
             Field::Temperature {
@@ -253,7 +254,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(buf, "35.12");
+        assert_eq!(String::from_utf8(buf).unwrap(), "35.12");
     }
 
     #[test]
@@ -262,7 +263,7 @@ mod tests {
             temperature: Some(Temperature::new::<degree_celsius>(35.12345)),
             ..Default::default()
         };
-        let mut buf = String::new();
+        let mut buf = Vec::new();
 
         data.write_field(
             Field::Temperature {
@@ -273,6 +274,6 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(buf, "35");
+        assert_eq!(String::from_utf8(buf).unwrap(), "35");
     }
 }
