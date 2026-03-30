@@ -361,6 +361,7 @@ dependencies = [
  "clap",
  "color-eyre",
  "etcetera",
+ "json-escape-simd",
  "nvml-wrapper",
  "procfs",
  "regex",
@@ -450,6 +451,12 @@ dependencies = [
  "once_cell",
  "wasm-bindgen",
 ]
+
+[[package]]
+name = "json-escape-simd"
+version = "3.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a3c2a6c0b4b5637c41719973ef40c6a1cf564f9db6958350de6193fbee9c23f5"
 
 [[package]]
 name = "lazy_static"

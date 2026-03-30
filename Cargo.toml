@@ -22,6 +22,7 @@ strum = { version = "0.28", features = ["derive"] }
 toml = "1.0"
 procfs = "0.18.0"
 uom = "0.38.0"
+json-escape-simd = "3.0.1"
 
 [profile.dev.package.backtrace]
 opt-level = 3

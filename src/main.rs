@@ -88,8 +88,14 @@ fn main() -> Result<()> {
         config.tooltip.retain_lines_with_values(&gpu_status_data);
     }
 
-    let text_state = State::try_from_format(&config.text.format)?;
-    let tooltip_state = State::try_from_format(config.tooltip.format())?;
+    // Escape special chars in the formats to make the JSON output valid.
+    // Also make line breaks literal (\n -> \\n), because we don't want
+    // to flush stdout before the whole JSON content is ready in the stdout buffer.
+    let escaped_text_format = json_escape_simd::escape(&config.text.format);
+    let escaped_tooltip_format = json_escape_simd::escape(config.tooltip.format());
+
+    let text_state = State::try_from_format(escaped_text_format)?;
+    let tooltip_state = State::try_from_format(escaped_tooltip_format)?;
 
     let update_interval = Duration::from_millis(config.general.interval);
 
@@ -97,7 +103,12 @@ fn main() -> Result<()> {
 
     loop {
         let gpu_status_data = gpu_status_handler.compute()?;
-        write_json(
+
+        // Static string chunks in `text_state` and `tooltip_state`
+        // were properly escaped with `json_escape_simd` before the loop.
+        // **Variable chunks should not yields special characters that
+        // should be escaped, either, which is unchecked.**
+        write_json_unchecked(
             &mut stdout_lock,
             &gpu_status_data,
             &text_state,
@@ -112,7 +123,12 @@ fn main() -> Result<()> {
 /// ```json
 /// {"text": "...", "tooltip": "..."}
 /// ```
-fn write_json(
+///
+/// This function does not escape characters for you.
+/// Callers have to make sure `text_state` and `tooltip_state`
+/// does not contains strings such as `\n`, `"`, ... that
+/// could break JSON.
+fn write_json_unchecked(
     buffer: &mut impl Write,
     data: &GpuStatusData,
     text_state: &State,

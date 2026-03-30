@@ -48,13 +48,9 @@ impl State {
 }
 
 impl State {
-    pub fn try_from_format(format: &str) -> Result<State, UnitParseError> {
-        // Make line breaks literal (\n -> \\n),
-        // because we don't want to flush stdout
-        let format = format.replace('\n', "\\n");
-
+    pub fn try_from_format(format: impl AsRef<str>) -> Result<State, UnitParseError> {
         Ok(Self {
-            chunks: parse(&format)?,
+            chunks: parse(format.as_ref())?,
         })
     }
 }
