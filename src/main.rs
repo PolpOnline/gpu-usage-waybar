@@ -91,8 +91,8 @@ fn main() -> Result<()> {
     // Escape special chars in the formats to make the JSON output valid.
     // Also make line breaks literal (\n -> \\n), because we don't want
     // to flush stdout before the whole JSON content is ready in the stdout buffer.
-    let escaped_text_format = json_escape_simd::escape(&config.text.format);
-    let escaped_tooltip_format = json_escape_simd::escape(config.tooltip.format());
+    let escaped_text_format = escape_json(&config.text.format);
+    let escaped_tooltip_format = escape_json(config.tooltip.format());
 
     let text_state = State::try_from_format(escaped_text_format)?;
     let tooltip_state = State::try_from_format(escaped_tooltip_format)?;
@@ -141,4 +141,15 @@ fn write_json_unchecked(
     writeln!(buffer, r#""}}"#)?;
 
     Ok(())
+}
+
+fn escape_json(s: &str) -> String {
+    let mut escaped = json_escape_simd::escape(s);
+
+    // json_escape_simd::escape wraps quotation marks around the string.
+    // Remove them for code readability in text/tooltip `State`s and `write_json_unchecked`.
+    escaped.remove(0);
+    escaped.pop();
+
+    escaped
 }
