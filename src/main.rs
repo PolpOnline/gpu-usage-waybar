@@ -104,10 +104,12 @@ fn main() -> Result<()> {
     loop {
         let gpu_status_data = gpu_status_handler.compute()?;
 
-        // Static string chunks in `text_state` and `tooltip_state`
-        // were properly escaped with `json_escape_simd` before the loop.
-        // **Variable chunks should not yields special characters that
-        // should be escaped, either, which is unchecked.**
+        // `Chunk::Static`s in `text_state` and `tooltip_state`
+        // have been escaped prior to the loop.
+        //
+        // Note: Variable chunks are also expected to contain no characters
+        // requiring escaping. This is unchecked for performance, but
+        // verified via debug assertions below.
         write_json_unchecked(
             &mut stdout_lock,
             &gpu_status_data,
@@ -115,7 +117,8 @@ fn main() -> Result<()> {
             &tooltip_state,
         )?;
 
-        // Debug validate final JSON
+        // Debug assert that `write_json_unchecked` produces valid JSON.
+        #[cfg(debug_assertions)]
         assert_valid_json(&gpu_status_data, &text_state, &tooltip_state);
 
         std::thread::sleep(update_interval);
