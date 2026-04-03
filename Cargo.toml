@@ -23,6 +23,7 @@ toml = "1.0"
 procfs = "0.18.0"
 uom = "0.38.0"
 json-escape-simd = "3.0.1"
+sonic-rs = "0.5.8"
 
 [profile.dev.package.backtrace]
 opt-level = 3

@@ -115,6 +115,9 @@ fn main() -> Result<()> {
             &tooltip_state,
         )?;
 
+        // Debug validate final JSON
+        assert_valid_json(&gpu_status_data, &text_state, &tooltip_state);
+
         std::thread::sleep(update_interval);
     }
 }
@@ -152,4 +155,22 @@ fn escape_json(s: &str) -> String {
     escaped.pop();
 
     escaped
+}
+
+#[cfg(debug_assertions)]
+/// Validates that [write_json_unchecked] produces a parseable JSON string.
+fn assert_valid_json(data: &GpuStatusData, text_state: &State, tooltip_state: &State) {
+    use sonic_rs::Value;
+
+    let mut buffer = Vec::new();
+    write_json_unchecked(&mut buffer, data, text_state, tooltip_state).unwrap();
+    let buf_s = str::from_utf8(&buffer).unwrap();
+
+    // parses the buffer string
+    let result = sonic_rs::from_str::<Value>(buf_s);
+
+    assert!(
+        result.is_ok(),
+        "Failed to parse JSON from string: The string may be invalid. Check if special characters are properly escaped."
+    );
 }
