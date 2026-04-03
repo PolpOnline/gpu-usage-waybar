@@ -4,21 +4,18 @@ pub mod formatter;
 pub mod gpu_status;
 pub mod nvidia;
 
-use std::{
-    io::{Write, stdout},
-    sync::OnceLock,
-    time::Duration,
-};
+use std::io::{self, Write};
+use std::{io::stdout, sync::OnceLock, time::Duration};
 
 use clap::Parser;
 use color_eyre::eyre::{Result, eyre};
 use nvml_wrapper::Nvml;
-use serde::Serialize;
 
+use crate::gpu_status::GpuStatusData;
 use crate::{
     amd::{AmdGpuStatus, AmdSysFS},
     formatter::State,
-    gpu_status::{GpuStatus, GpuStatusData},
+    gpu_status::GpuStatus,
     nvidia::NvidiaGpuStatus,
 };
 
@@ -91,8 +88,14 @@ fn main() -> Result<()> {
         config.tooltip.retain_lines_with_values(&gpu_status_data);
     }
 
-    let mut text_state = State::try_from_format(&config.text.format)?;
-    let mut tooltip_state = State::try_from_format(config.tooltip.format())?;
+    // Escape special chars in the formats to make the JSON output valid.
+    // Also make line breaks literal (\n -> \\n), because we don't want
+    // to flush stdout before the whole JSON content is ready in the stdout buffer.
+    let escaped_text_format = escape_json(&config.text.format);
+    let escaped_tooltip_format = escape_json(config.tooltip.format());
+
+    let text_state = State::try_from_format(escaped_text_format)?;
+    let tooltip_state = State::try_from_format(escaped_tooltip_format)?;
 
     let update_interval = Duration::from_millis(config.general.interval);
 
@@ -101,27 +104,93 @@ fn main() -> Result<()> {
     loop {
         let gpu_status_data = gpu_status_handler.compute()?;
 
-        let output = format_output(&gpu_status_data, &mut text_state, &mut tooltip_state);
+        // `Chunk::Static`s in `text_state` and `tooltip_state`
+        // have been escaped prior to the loop.
+        //
+        // Note: Variable chunks are also expected to contain no characters
+        // requiring escaping. This is unchecked for performance, but
+        // verified via debug assertions below.
+        write_json_unchecked(
+            &mut stdout_lock,
+            &gpu_status_data,
+            &text_state,
+            &tooltip_state,
+        )?;
 
-        writeln!(&mut stdout_lock, "{}", sonic_rs::to_string(&output)?)?;
+        // Debug assert that `write_json_unchecked` produces valid JSON.
+        #[cfg(debug_assertions)]
+        assert_valid_json(&gpu_status_data, &text_state, &tooltip_state);
 
         std::thread::sleep(update_interval);
     }
 }
 
-fn format_output<'t, 'u>(
-    gpu_status: &GpuStatusData,
-    text_state: &'t mut State,
-    tooltip_state: &'u mut State,
-) -> OutputFormat<'t, 'u> {
-    OutputFormat {
-        text: gpu_status.get_text(text_state),
-        tooltip: gpu_status.get_tooltip(tooltip_state),
-    }
+/// Write `data` to waybar-flavored json:
+/// ```json
+/// {"text": "...", "tooltip": "..."}
+/// ```
+///
+/// This function does not escape characters for you.
+/// Callers have to make sure `text_state` and `tooltip_state`
+/// does not contains strings such as `\n`, `"`, ... that
+/// could break JSON.
+fn write_json_unchecked(
+    buffer: &mut impl Write,
+    data: &GpuStatusData,
+    text_state: &State,
+    tooltip_state: &State,
+) -> io::Result<()> {
+    write!(buffer, r#"{{"text":""#)?;
+    data.write_text(text_state, buffer)?;
+    write!(buffer, r#"","tooltip":""#)?;
+    data.write_tooltip(tooltip_state, buffer)?;
+    writeln!(buffer, r#""}}"#)?;
+
+    Ok(())
 }
 
-#[derive(Default, Serialize)]
-struct OutputFormat<'t, 'u> {
-    text: &'t str,
-    tooltip: &'u str,
+fn escape_json(s: &str) -> String {
+    let mut escaped = json_escape_simd::escape(s);
+
+    // json_escape_simd::escape wraps quotation marks around the string.
+    // Remove them for code readability in text/tooltip `State`s and `write_json_unchecked`.
+    escaped.remove(0);
+    escaped.pop();
+
+    escaped
+}
+
+#[cfg(debug_assertions)]
+/// Validates that [write_json_unchecked] produces a
+/// **single-line** valid JSON string.
+///
+/// It also ensures the output fits within the
+/// **1024-byte** stdout line buffer to prevent premature flushes.
+fn assert_valid_json(data: &GpuStatusData, text_state: &State, tooltip_state: &State) {
+    use sonic_rs::Value;
+
+    let mut buffer = Vec::new();
+    write_json_unchecked(&mut buffer, data, text_state, tooltip_state).unwrap();
+    let buf_s = str::from_utf8(&buffer).unwrap();
+
+    // parse the buffer string
+    let result = sonic_rs::from_str::<Value>(buf_s);
+
+    // The output must not contain line breaks other
+    // than the last character or the stdout line
+    // buffer will flush early.
+    assert!(buf_s.ends_with('\n'));
+    assert!(!buf_s.chars().rev().skip(1).any(|c| c == '\n'));
+
+    // The output size must be under 1024 bytes to
+    // prevent the stdout buffer from flushing early.
+    assert!(
+        buf_s.len() < 1024,
+        "JSON output exceeds the 1024-byte stdout line buffer limit"
+    );
+
+    assert!(
+        result.is_ok(),
+        "Failed to parse JSON from string: The string may be invalid. Check if special characters are properly escaped."
+    );
 }
