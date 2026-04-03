@@ -161,7 +161,11 @@ fn escape_json(s: &str) -> String {
 }
 
 #[cfg(debug_assertions)]
-/// Validates that [write_json_unchecked] produces a parseable JSON string.
+/// Validates that [write_json_unchecked] produces a
+/// **single-line** valid JSON string.
+///
+/// It also ensures the output fits within the
+/// **1024-byte** stdout line buffer to prevent premature flushes.
 fn assert_valid_json(data: &GpuStatusData, text_state: &State, tooltip_state: &State) {
     use sonic_rs::Value;
 
@@ -169,8 +173,21 @@ fn assert_valid_json(data: &GpuStatusData, text_state: &State, tooltip_state: &S
     write_json_unchecked(&mut buffer, data, text_state, tooltip_state).unwrap();
     let buf_s = str::from_utf8(&buffer).unwrap();
 
-    // parses the buffer string
+    // parse the buffer string
     let result = sonic_rs::from_str::<Value>(buf_s);
+
+    // The output must not contain line breaks other
+    // than the last character or the stdout line
+    // buffer will flush early.
+    assert!(buf_s.ends_with('\n'));
+    assert!(!buf_s.chars().rev().skip(1).any(|c| c == '\n'));
+
+    // The output size must be under 1024 bytes to
+    // prevent the stdout buffer from flushing early.
+    assert!(
+        buf_s.len() < 1024,
+        "JSON output exceeds the 1024-byte stdout line buffer limit"
+    );
 
     assert!(
         result.is_ok(),
