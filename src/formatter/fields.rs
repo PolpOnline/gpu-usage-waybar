@@ -84,6 +84,7 @@ impl TryFrom<FormatSegments<'_>> for Field {
 #[derive(Debug, Clone, Copy, PartialEq, Display, EnumString)]
 #[strum(serialize_all = "snake_case")]
 pub enum SimpleField {
+    GpuIndex,
     GpuUtilization,
     MemRw,
     MemUtilization,

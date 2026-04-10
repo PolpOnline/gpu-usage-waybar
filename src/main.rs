@@ -29,14 +29,14 @@ pub enum Instance {
 
 impl Instance {
     /// Get the instance based on the GPU brand.
-    pub fn new() -> Result<Self> {
+    pub fn new(gpu_index: u8) -> Result<Self> {
         let modules = procfs::modules()?;
 
         if modules.contains_key("nvidia") {
             return Ok(Self::Nvml(Box::new(Nvml::init()?)));
         }
         if modules.contains_key("amdgpu") {
-            return Ok(Self::Amd(Box::new(AmdSysFS::init()?)));
+            return Ok(Self::Amd(Box::new(AmdSysFS::init(gpu_index)?)));
         }
 
         Err(eyre!("No supported GPU found"))
@@ -45,8 +45,8 @@ impl Instance {
 
 pub static INSTANCE: OnceLock<Instance> = OnceLock::new();
 
-fn get_instance() -> &'static Instance {
-    INSTANCE.get_or_init(|| Instance::new().unwrap())
+fn get_instance(gpu_index: u8) -> &'static Instance {
+    INSTANCE.get_or_init(|| Instance::new(gpu_index).unwrap())
 }
 
 #[derive(Parser, Debug)]
@@ -55,6 +55,10 @@ pub struct Args {
     /// Polling interval in milliseconds
     #[arg(long)]
     interval: Option<u64>,
+
+    /// The GPU index to use (default: 0).
+    #[arg(long)]
+    gpu_index: Option<u8>,
 
     /// The format you want to display for `text`.
     /// For example,"{gpu_utilization}%|{mem_utilization}%".
@@ -78,9 +82,11 @@ fn main() -> Result<()> {
 
     config.merge_args_into_config(&args)?;
 
-    let gpu_status_handler: Box<dyn GpuStatus> = match get_instance() {
-        Instance::Nvml(nvml) => Box::new(NvidiaGpuStatus::new(nvml)?),
-        Instance::Amd(amd_sys_fs) => Box::new(AmdGpuStatus::new(amd_sys_fs)?),
+    let gpu_status_handler: Box<dyn GpuStatus> = match get_instance(config.general.gpu_index) {
+        Instance::Nvml(nvml) => Box::new(NvidiaGpuStatus::new(nvml, config.general.gpu_index)?),
+        Instance::Amd(amd_sys_fs) => {
+            Box::new(AmdGpuStatus::new(amd_sys_fs, config.general.gpu_index)?)
+        }
     };
 
     // If the the user didn't set a custom tooltip format,

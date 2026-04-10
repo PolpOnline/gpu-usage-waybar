@@ -12,11 +12,15 @@ use crate::gpu_status::{GpuStatus, GpuStatusData, Temperature};
 
 pub struct AmdGpuStatus {
     amd_sys_fs: &'static AmdSysFS,
+    gpu_index: u8,
 }
 
 impl AmdGpuStatus {
-    pub const fn new(amd_sys_fs: &'static AmdSysFS) -> Result<Self> {
-        Ok(Self { amd_sys_fs })
+    pub const fn new(amd_sys_fs: &'static AmdSysFS, gpu_index: u8) -> Result<Self> {
+        Ok(Self {
+            amd_sys_fs,
+            gpu_index,
+        })
     }
 }
 
@@ -41,6 +45,7 @@ impl GpuStatus for AmdGpuStatus {
             powered_on: true,
             has_running_processes: true, /* TODO: temporarily set to true until AMD GPU process
                                           * detection is implemented */
+            gpu_index: Some(self.gpu_index),
             gpu_utilization: gpu_handle.get_busy_percent().ok(),
             mem_used: gpu_handle
                 .get_used_vram()
@@ -67,14 +72,14 @@ pub struct AmdSysFS {
 }
 
 impl AmdSysFS {
-    pub fn init() -> Result<Self> {
+    pub fn init(gpu_index: u8) -> Result<Self> {
         let drm_gpus = Self::get_drm_gpus()?;
 
         if drm_gpus.is_empty() {
             return Err(eyre!("No AMD GPU found"));
         }
 
-        let gpu_handle = GpuHandle::new_from_path(drm_gpus[0].clone())?;
+        let gpu_handle = GpuHandle::new_from_path(drm_gpus[gpu_index as usize].clone())?;
 
         Ok(Self { gpu_handle })
     }
@@ -83,11 +88,11 @@ impl AmdSysFS {
         let drm_dir = PathBuf::from("/sys/class/drm");
         let mut drm_gpus = Vec::new();
 
-        let card_regex = Regex::new(r"^card[0-9]*$")?;
+        let render_regex = Regex::new(r"^renderD([1-9][0-9]*)$")?;
 
         for entry in drm_dir.read_dir()? {
             let entry = entry?;
-            let mut path = entry.path();
+            let path = entry.path();
 
             if path.is_dir() {
                 let drm_device = path
@@ -96,12 +101,17 @@ impl AmdSysFS {
                     .to_str()
                     .ok_or(eyre!("Path isn't a valid UTF-8"))?;
 
-                if card_regex.is_match(drm_device) {
-                    path.push(PathBuf::from("device"));
-                    drm_gpus.push(path);
+                if let Some(captures) = render_regex.captures(drm_device) {
+                    let drm_minor = captures.get(1).unwrap().as_str();
+                    drm_gpus.push((drm_minor.parse::<usize>()?, path));
                 }
             }
         }
+        drm_gpus.sort_by_key(|(minor, _)| *minor);
+        let drm_gpus: Vec<PathBuf> = drm_gpus
+            .into_iter()
+            .map(|(_, path)| path.join("device"))
+            .collect();
 
         Ok(drm_gpus)
     }

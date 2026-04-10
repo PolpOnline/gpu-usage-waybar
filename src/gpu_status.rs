@@ -10,6 +10,8 @@ pub type Temperature = uom::si::f32::ThermodynamicTemperature;
 
 #[derive(Default)]
 pub struct GpuStatusData {
+    /// GPU index
+    pub(crate) gpu_index: Option<u8>,
     /// Whether any process is using GPU.
     pub(crate) has_running_processes: bool,
     /// Whether GPU is powered on at the PCI level.
@@ -143,6 +145,7 @@ impl GpuStatusData {
         }
 
         match field {
+            SimpleField::GpuIndex => d!(self.gpu_index),
             SimpleField::GpuUtilization => d!(self.gpu_utilization),
             SimpleField::MemRw => d!(self.mem_rw),
             SimpleField::MemUtilization => d!(self.compute_mem_usage()),

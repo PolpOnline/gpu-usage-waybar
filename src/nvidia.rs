@@ -19,18 +19,23 @@ use crate::gpu_status::{GpuStatus, GpuStatusData, PState, Temperature};
 pub struct NvidiaGpuStatus<'a> {
     device: Device<'a>,
     bus_id: String,
+    gpu_index: u8,
 }
 
 impl NvidiaGpuStatus<'_> {
-    pub fn new(instance: &'static Nvml) -> Result<Self> {
-        let device = instance.device_by_index(0)?;
+    pub fn new(instance: &'static Nvml, gpu_index: u8) -> Result<Self> {
+        let device = instance.device_by_index(gpu_index as u32)?;
 
         // Query PCI info just once
         // NVML returns a PCI domain up to 0xffffffff; need to truncate
         // to match sysfs
         let bus_id = device.pci_info()?.bus_id.chars().skip(4).collect();
 
-        Ok(Self { device, bus_id })
+        Ok(Self {
+            device,
+            bus_id,
+            gpu_index,
+        })
     }
 }
 
@@ -71,7 +76,7 @@ fn is_powered_on(bus_id: &str) -> Result<bool> {
 /// # References
 ///
 /// <https://wiki.archlinux.org/title/PRIME#NVIDIA>
-fn has_running_processes() -> bool {
+fn has_running_processes(gpu_index: u8) -> bool {
     let procs = all_processes().expect("Can't read /proc");
 
     for proc in procs.flatten() {
@@ -85,7 +90,7 @@ fn has_running_processes() -> bool {
 
         for fd in fds.flatten() {
             if let FDTarget::Path(ref path) = fd.target
-                && path == "/dev/nvidia0"
+                && path == &format!("/dev/nvidia{gpu_index}")
             {
                 return true;
             }
@@ -101,7 +106,7 @@ impl NvidiaGpuStatus<'_> {
             return Ok(GpuPowerState::Off);
         }
 
-        if !has_running_processes() {
+        if !has_running_processes(self.gpu_index) {
             return Ok(GpuPowerState::OnNoProcess);
         }
 
@@ -179,11 +184,13 @@ impl GpuStatus for NvidiaGpuStatus<'_> {
             GpuPowerState::Off => GpuStatusData {
                 powered_on: false,
                 has_running_processes: false,
+                gpu_index: Some(self.gpu_index),
                 ..Default::default()
             },
             GpuPowerState::OnNoProcess => GpuStatusData {
                 powered_on: true,
                 has_running_processes: false,
+                gpu_index: Some(self.gpu_index),
                 ..Default::default()
             },
             GpuPowerState::PoweredOnInUse => self.collect_active_gpu_stats(),
