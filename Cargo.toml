@@ -10,7 +10,7 @@ readme = "README.md"
 repository = "https://github.com/PolpOnline/gpu-usage-waybar"
 
 [dependencies]
-amdgpu-sysfs = "0.19"
+amdgpu-sysfs = "0.21"
 clap = { version = "4.5", features = ["cargo", "derive"] }
 color-eyre = "0.6"
 etcetera = "0.11"
