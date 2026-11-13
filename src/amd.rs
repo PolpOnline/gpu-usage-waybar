@@ -23,19 +23,14 @@ impl AmdGpuStatus {
 impl GpuStatus for AmdGpuStatus {
     fn compute(&self) -> Result<GpuStatusData> {
         let gpu_handle = &self.amd_sys_fs.gpu_handle;
-        let hw_mon = &gpu_handle.hw_monitors[0];
+        let hw_mon = gpu_handle.hw_monitors.first();
 
-        let temps = hw_mon.get_temps();
+        let temps = hw_mon.map(HwMon::get_temps).unwrap_or_default();
         const TEMP_SENSOR_NAME: &str = "edge";
         let temp = temps
-            .iter()
-            .find(|t| t.0 == TEMP_SENSOR_NAME)
-            .ok_or(eyre!(format!(
-                "No \"{}\" temperature sensor found",
-                TEMP_SENSOR_NAME
-            )))?
-            .1
-            .current;
+            .into_iter()
+            .find(|(label, _)| label == TEMP_SENSOR_NAME)
+            .and_then(|(_, temperature)| temperature.current);
 
         Ok(GpuStatusData {
             powered_on: true,
@@ -51,9 +46,9 @@ impl GpuStatus for AmdGpuStatus {
                 .ok()
                 .map(|v| Information::new::<byte>(v as f32)),
             temperature: temp.map(Temperature::new::<degree_celsius>),
-            power: read_power(hw_mon),
+            power: hw_mon.and_then(read_power),
             p_level: gpu_handle.get_power_force_performance_level().ok(),
-            fan_speed: fan_percentage(hw_mon).ok(),
+            fan_speed: hw_mon.and_then(|hw_mon| fan_percentage(hw_mon).ok()),
             ..Default::default()
         })
     }
@@ -274,5 +269,36 @@ mod tests {
 
         let mut tooltip = State::try_from_format("{power:w}W").unwrap();
         assert_eq!(data.get_tooltip(&mut tooltip), "95W");
+    }
+
+    #[test]
+    fn test_compute_without_hwmon() {
+        // e.g. a container/VM where hwmon is not exposed: must not panic and
+        // must still report the metrics that come from the device directory.
+        let sysfs = MockSysFs::new("no-hwmon");
+        sysfs.write("uevent", "DRIVER=amdgpu\nPCI_CLASS=30000\n");
+        sysfs.write("gpu_busy_percent", "7");
+        sysfs.write("power_dpm_force_performance_level", "auto");
+
+        let data = compute(&sysfs);
+
+        assert_eq!(data.gpu_utilization, Some(7));
+        assert_eq!(data.temperature, None);
+        assert_eq!(data.power, None);
+        assert_eq!(data.fan_speed, None);
+        assert_eq!(data.p_level, Some(PerformanceLevel::Auto));
+    }
+
+    #[test]
+    fn test_compute_without_edge_sensor() {
+        let sysfs = MockSysFs::new("no-edge");
+        sysfs.write("uevent", "DRIVER=amdgpu\nPCI_CLASS=30000\n");
+        sysfs.write("hwmon/hwmon0/name", "amdgpu");
+        sysfs.write("hwmon/hwmon0/temp1_label", "junction");
+        sysfs.write("hwmon/hwmon0/temp1_input", "45000");
+
+        let data = compute(&sysfs);
+
+        assert_eq!(data.temperature, None);
     }
 }
