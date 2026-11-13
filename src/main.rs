@@ -98,12 +98,17 @@ fn main() -> Result<()> {
 
     let mut stdout_lock = stdout().lock();
 
+    // Reused across updates: `write_output` clears it but keeps the allocated
+    // capacity, so the serialized JSON does not allocate on every iteration.
+    let mut output_buffer = Vec::new();
+
     loop {
         let gpu_status_data = gpu_status_handler.compute()?;
 
         let output = format_output(&gpu_status_data, &mut text_state, &mut tooltip_state);
 
-        writeln!(&mut stdout_lock, "{}", sonic_rs::to_string(&output)?)?;
+        write_output(&mut output_buffer, &output)?;
+        stdout_lock.write_all(&output_buffer)?;
 
         std::thread::sleep(update_interval);
     }
@@ -124,4 +129,43 @@ fn format_output<'t, 'u>(
 struct OutputFormat<'t, 'u> {
     text: &'t str,
     tooltip: &'u str,
+}
+
+/// Serialize `output` as a single JSON line into `buffer`.
+///
+/// `buffer` is cleared first and keeps its allocated capacity between calls.
+fn write_output(buffer: &mut Vec<u8>, output: &OutputFormat) -> Result<()> {
+    buffer.clear();
+    sonic_rs::to_writer(&mut *buffer, output)?;
+    buffer.push(b'\n');
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use super::*;
+
+    #[test]
+    fn output_is_a_single_json_line() {
+        let output = OutputFormat {
+            text: "42%",
+            tooltip: "line 1\n\"quoted\"",
+        };
+        let mut buffer = Vec::new();
+
+        write_output(&mut buffer, &output).unwrap();
+
+        // Literal newlines inside the tooltip must be escaped, otherwise
+        // Waybar would receive more than one line per update.
+        assert_eq!(buffer.iter().filter(|&&b| b == b'\n').count(), 1);
+        assert!(buffer.ends_with(b"\n"));
+
+        let parsed: HashMap<String, String> =
+            sonic_rs::from_slice(&buffer[..buffer.len() - 1]).unwrap();
+        assert_eq!(parsed["text"], "42%");
+        assert_eq!(parsed["tooltip"], "line 1\n\"quoted\"");
+    }
 }
